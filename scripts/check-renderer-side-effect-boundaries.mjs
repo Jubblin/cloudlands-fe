@@ -23,7 +23,7 @@ const APPROVED_BRIDGE_REGISTRATIONS = new Map([
   ['src/store/renderer/seeders/auto-update-bridge-seeder.ts', { registerMockIpcHandler: 1 }],
   ['src/store/renderer/seeders/backend-status-bridge-seeder.ts', { registerMockIpcHandler: 9 }],
   ['src/store/renderer/seeders/browser-ipc-bridge-seeder.ts', { registerMockIpcHandler: 1 }],
-  ['src/store/renderer/seeders/connections-bridge-seeder.ts', { registerMockIpcHandler: 12 }],
+  ['src/store/renderer/seeders/connections-bridge-seeder.ts', { registerMockIpcHandler: 13 }],
   // intent:// link delivery: drains the actions main queued for this window.
   ['src/store/renderer/seeders/deep-link-bridge-seeder.ts', { registerMockIpcHandler: 1 }],
   ['src/store/renderer/seeders/file-bridge-seeder.ts', { registerMockIpcHandler: 12 }],
