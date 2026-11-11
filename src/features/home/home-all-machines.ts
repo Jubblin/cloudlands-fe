@@ -42,7 +42,9 @@ export function buildMachineSections(
       id: connection.id,
       label: labelFor(connection),
       isCurrent: connection.id === currentId,
-      workspaces: entry?.ok ? [...entry.workspaces].sort((a, b) => activityTime(b) - activityTime(a)) : null,
+      workspaces: entry?.ok
+        ? [...entry.workspaces].sort((a, b) => activityTime(b) - activityTime(a))
+        : null,
       failure: entry ? (entry.ok ? null : entry.reason) : 'not-connected',
     };
   });

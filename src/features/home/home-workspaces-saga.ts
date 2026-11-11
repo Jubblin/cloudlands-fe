@@ -1,4 +1,13 @@
-import { actionChannel, all, call, put, select, take, type SagaGenerator } from 'typed-redux-saga';
+import {
+  actionChannel,
+  all,
+  call,
+  fork,
+  put,
+  select,
+  take,
+  type SagaGenerator,
+} from 'typed-redux-saga';
 import { buffers, eventChannel } from 'redux-saga';
 import type { Action } from '@redux-saga/types';
 import { workspaceDeleted } from '$store/renderer/slices/workspace-lifecycle/workspace-lifecycle-slice';
@@ -6,6 +15,7 @@ import {
   setLabsMultiplayerEnabled,
   toggleLabsMultiplayer,
 } from '$store/renderer/slices/user-preferences/user-preferences-slice';
+import { homeAllMachinesSaga } from './home-all-machines-saga';
 import { selectHomePersistenceScope, selectHomeWorkspaceView } from './home-workspaces-selectors';
 import {
   hydrateHomeWorkspaceSettings,
@@ -36,6 +46,7 @@ import {
 } from './home-workspaces-persistence';
 
 export function* homeWorkspacesSaga(): SagaGenerator<void> {
+  yield* fork(homeAllMachinesSaga);
   yield* all([
     call(homeWorkspacePersistenceSaga),
     call(homeSetAsideSaga),

@@ -14,12 +14,9 @@
     selectConnections,
     selectCurrentConnectionId,
   } from '$store/renderer/slices/connections/connections-selectors';
-  import {
-    CONNECTION_CHANNELS,
-    LOCAL_CONNECTION_ID,
-    type ListAllWorkspacesResult,
-    type MachineWorkspacesEntry,
-  } from '$shared/types/connections';
+  import { LOCAL_CONNECTION_ID, type MachineWorkspacesEntry } from '$shared/types/connections';
+  import { store } from '$store/renderer/store';
+  import { listAllMachinesWorkspacesRequested } from './home-workspaces-slice';
   import { formatInteger } from '$lib/i18n/format';
   import { m } from '$shared/paraglide/messages.js';
   import { activityTime, buildMachineSections, statusText } from './home-all-machines';
@@ -37,11 +34,7 @@
     loading = true;
     failed = false;
     try {
-      const api = typeof window !== 'undefined' ? window.electronAPI : undefined;
-      if (!api) throw new Error('electronAPI is not available');
-      const result = (await api.invoke(
-        CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,
-      )) as ListAllWorkspacesResult;
+      const result = await store.dispatch(listAllMachinesWorkspacesRequested());
       if (serial !== requestSerial) return;
       entries = result.machines;
     } catch {
@@ -100,7 +93,8 @@
           >
             <span class="truncate">{section.label}</span>
             {#if section.isCurrent}
-              <span class="type-caption rounded-full border border-border px-2 text-muted-foreground"
+              <span
+                class="type-caption rounded-full border border-border px-2 text-muted-foreground"
                 >{m.home_allMachines_thisWindow()}</span
               >
             {/if}
@@ -118,7 +112,9 @@
               >
             </div>
           {:else if section.workspaces && section.workspaces.length === 0}
-            <p class="type-caption py-3 text-muted-foreground">{m.home_allMachines_noWorkspaces()}</p>
+            <p class="type-caption py-3 text-muted-foreground">
+              {m.home_allMachines_noWorkspaces()}
+            </p>
           {:else if section.workspaces}
             <ul class="m-0 list-none p-0">
               {#each section.workspaces as workspace (workspace.id)}

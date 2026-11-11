@@ -14,7 +14,11 @@ const ws = (id: string, lastActivityAt: string | null) => ({
 describe('buildMachineSections', () => {
   const connections = [conn('local', true), conn('zeta'), conn('alpha')];
   const entries: MachineWorkspacesEntry[] = [
-    { id: 'local', ok: true, workspaces: [ws('old', '2026-01-01T00:00:00Z'), ws('new', '2026-02-01T00:00:00Z')] },
+    {
+      id: 'local',
+      ok: true,
+      workspaces: [ws('old', '2026-01-01T00:00:00Z'), ws('new', '2026-02-01T00:00:00Z')],
+    },
     { id: 'zeta', ok: false, reason: 'timeout' },
   ];
   const sections = buildMachineSections(connections, entries, 'zeta', (c) => c.id);
