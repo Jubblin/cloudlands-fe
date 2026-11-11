@@ -29,6 +29,8 @@
   import HomeWorkspaceSettings from './HomeWorkspaceSettings.svelte';
   import HomeWorkspaceControls from './HomeWorkspaceControls.svelte';
   import * as Tabs from '$lib/components/ui/tabs';
+  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import HomeAllMachines from './HomeAllMachines.svelte';
   import { Screen, EmptyState, ErrorState } from '$lib/components/patterns/screen';
   import HomeLoading from './HomeLoading.svelte';
   import { springIn, crispOut, animatedHeight } from '$lib/motion';
@@ -133,6 +135,7 @@
     preview?: boolean;
     integrationPreview?: Partial<Record<'prs' | 'linear', HomeIntegrationsState>>;
   } = $props();
+  let workspaceScope = $state<'machine' | 'all'>('machine');
   const microConnected$ = microConnectedReadable();
   const pinnedIds$ = selectPinnedWorkspaceIds();
   const labelsInUse$ = selectWorkspaceLabelsInUse();
@@ -1062,9 +1065,27 @@
                         <div
                           class="flex shrink-0 flex-nowrap items-center gap-3 overflow-x-auto px-6 py-4"
                         >
-                          {@render workspaceControls()}
+                          <ToggleGroup.Root
+                            type="single"
+                            variant="outline"
+                            size="sm"
+                            aria-label={m.home_scope_label()}
+                            value={workspaceScope}
+                            onValueChange={(value) => {
+                              if (value === 'machine' || value === 'all') workspaceScope = value;
+                            }}
+                          >
+                            <ToggleGroup.Item value="machine"
+                              >{m.home_scope_thisMachine()}</ToggleGroup.Item
+                            >
+                            <ToggleGroup.Item value="all"
+                              >{m.home_scope_allMachines()}</ToggleGroup.Item
+                            >
+                          </ToggleGroup.Root>
+                          {#if workspaceScope === 'machine'}{@render workspaceControls()}{/if}
                         </div>
-                        {#if $workspaceError$}<ErrorState
+                        {#if workspaceScope === 'all'}<HomeAllMachines />
+                        {:else if $workspaceError$}<ErrorState
                             retryLabel={m.home_retry()}
                             onRetry={() => store.dispatch(loadWorkspacesRequested())}
                             >{#snippet message()}{$workspaceError$}{/snippet}</ErrorState

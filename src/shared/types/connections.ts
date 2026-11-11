@@ -528,6 +528,32 @@ export type UpdateBackendResult =
   | { ok: true }
   | { ok: false; reason: 'not-connected' | 'unsupported' | 'failed'; message?: string };
 
+/** One workspace row in the cross-machine Home view (read-only summary). */
+export interface MachineWorkspaceSummary {
+  id: string;
+  title: string;
+  branch: string;
+  /** Lifecycle status as served by the daemon (e.g. `active`). */
+  status: string;
+  /** BE-owned display status when the daemon serves a known one. */
+  displayStatus?: string;
+  /** `agent_running` while an agent is working. */
+  activity?: string;
+  repositoryName?: string;
+  /** ISO timestamp used for ordering; `null` when the daemon omits it. */
+  lastActivityAt: string | null;
+}
+
+/** Per-machine outcome of the cross-machine workspace listing. */
+export type MachineWorkspacesEntry =
+  | { id: string; ok: true; workspaces: MachineWorkspaceSummary[] }
+  | { id: string; ok: false; reason: 'not-connected' | 'timeout' | 'failed' };
+
+/** `connections:list-all-workspaces` result: one entry per live backend. */
+export interface ListAllWorkspacesResult {
+  machines: MachineWorkspacesEntry[];
+}
+
 // ============================================================================
 // Push-event payloads (main → renderer)
 // ============================================================================

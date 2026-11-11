@@ -1070,6 +1070,9 @@ export const IPC_CHANNELS = {
     // result — never throws for daemon-side failures (unsupported/old daemon,
     // unsupervised) so the renderer can toast a specific message.
     UPDATE_BACKEND: 'connections:update-backend',
+    // Read-only fan-out: `workspace.list` against every live pooled backend
+    // (per-backend timeout, partial results) for the Home "All machines" view.
+    LIST_ALL_WORKSPACES: 'connections:list-all-workspaces',
     CHANGED: 'connections:changed',
     CERT_MISMATCH: 'connections:cert-mismatch',
     // Non-fatal per-host cert warnings observed by the multi-host connection

@@ -185,6 +185,9 @@ import type {
   UnpublishSelfResult,
   UpdateConnectionResult,
   UpdateBackendResult,
+  ListAllWorkspacesResult,
+  MachineWorkspaceSummary,
+  MachineWorkspacesEntry,
 } from '../../../shared/types/connections';
 import { compareProtocolMajor } from './protocol-compat';
 import {
@@ -213,6 +216,7 @@ import {
   ConnectionsUnpublishSelfSchema,
   ConnectionsUpdateSchema,
   ConnectionsUpdateBackendSchema,
+  ConnectionsListAllWorkspacesSchema,
   PresenceReportSchema,
 } from '../../../main/ipc-schemas';
 import { createValidatedHandler } from '../../../main/ipc-validation-middleware';
@@ -1576,6 +1580,55 @@ function getLocalBackendClientOriginal(owner?: PoolOwner): JsonRpcClient {
  *   - any other daemon/transport error → 'failed' with the error message.
  */
 const backendUpdateRequests = new Map<string, Promise<UpdateBackendResult>>();
+
+const ALL_MACHINES_LIST_TIMEOUT_MS = 8_000;
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function toMachineWorkspaceSummary(raw: unknown): MachineWorkspaceSummary | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  const id = optionalString(row.id);
+  if (!id) return null;
+  return {
+    id,
+    title: optionalString(row.title) ?? optionalString(row.name) ?? id,
+    branch: optionalString(row.branch) ?? '',
+    status: optionalString(row.status) ?? 'active',
+    displayStatus: optionalString(row.displayStatus),
+    activity: optionalString(row.activity),
+    repositoryName: optionalString(row.repositoryName),
+    lastActivityAt:
+      optionalString(row.lastContentActivity) ??
+      optionalString(row.lastActivity) ??
+      optionalString(row.createdAt) ??
+      null,
+  };
+}
+
+/** One machine's workspaces for the cross-machine view; never throws. */
+async function listMachineWorkspaces(id: string): Promise<MachineWorkspacesEntry> {
+  const client = backendClients.get(id);
+  if (!client || client.getStatus() !== 'connected') {
+    return { id, ok: false, reason: 'not-connected' };
+  }
+  try {
+    const result = await client.request<{ workspaces?: unknown[] }>('workspace.list', undefined, {
+      timeoutMs: ALL_MACHINES_LIST_TIMEOUT_MS,
+    });
+    const rows = Array.isArray(result?.workspaces) ? result.workspaces : [];
+    const workspaces = rows
+      .map(toMachineWorkspaceSummary)
+      .filter((row): row is MachineWorkspaceSummary => row !== null);
+    return { id, ok: true, workspaces };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn('Cross-machine workspace list failed', { id, error: message });
+    return { id, ok: false, reason: /timed? ?out/i.test(message) ? 'timeout' : 'failed' };
+  }
+}
 
 function requestBackendUpdate(id: string): Promise<UpdateBackendResult> {
   return poolWork('backend-update', undefined, (owner) => {
@@ -5406,6 +5459,22 @@ function registerConnectionsHandlers(): void {
       ConnectionsUpdateBackendSchema,
       async (_event, { id }) => requestBackendUpdate(id),
       CONNECTIONS.UPDATE_BACKEND,
+    ),
+  );
+
+  // Cross-machine Home view: read-only `workspace.list` against every live
+  // pooled backend. Each machine is bounded by its own timeout and settles
+  // independently, so one slow or offline machine never hides the others.
+  ipcMain.handle(
+    CONNECTIONS.LIST_ALL_WORKSPACES,
+    createValidatedHandler(
+      ConnectionsListAllWorkspacesSchema,
+      async (): Promise<ListAllWorkspacesResult> => {
+        const ids = getLiveBackendIds();
+        const machines = await Promise.all(ids.map((id) => listMachineWorkspaces(id)));
+        return { machines };
+      },
+      CONNECTIONS.LIST_ALL_WORKSPACES,
     ),
   );
 
