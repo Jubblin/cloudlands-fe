@@ -1,6 +1,7 @@
-import { createAction } from '@themislib/themis/utils/store/create-action';
+import { createAction, createAsyncAction } from '@themislib/themis/utils/store/create-action';
 import { createReducer } from '@themislib/themis/utils/store/create-reducer';
 import { workspaceDeleted } from '$store/renderer/slices/workspace-lifecycle/workspace-lifecycle-slice';
+import type { ListAllWorkspacesResult } from '$shared/types/connections';
 import {
   defaultHomeConfiguration,
   HOME_SET_ASIDE_CAPACITY,
@@ -183,4 +184,10 @@ homeWorkspacesReducer.with(homeHiddenReposSynced, (state, { payload: [scope, hid
   state.persistenceScope === scope
     ? { ...state, hiddenRepos: normalizeHomeHiddenRepos(hiddenRepos) }
     : state,
+);
+
+/** Saga-owned read of every connected machine's workspaces (Home "All machines"). */
+export const listAllMachinesWorkspacesRequested = createAsyncAction<[], ListAllWorkspacesResult>(
+  'homeWorkspaces/listAllMachines',
+  'homeWorkspaces/listAllMachinesRequested',
 );
