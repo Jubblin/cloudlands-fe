@@ -32,6 +32,7 @@ import type {
   OpenConnectionResult,
   UpdateBackendParams,
   UpdateBackendResult,
+  ListAllWorkspacesResult,
   KeychainSyncStateResult,
   SetKeychainSyncEnabledParams,
   PublishSelfResult,
@@ -140,6 +141,13 @@ registerMockIpcHandler(
     if (id === LOCAL_CONNECTION_ID) return { ok: false, reason: 'unsupported' };
     return { ok: false, reason: 'not-connected' };
   },
+);
+
+// Cross-machine workspace listing. The mock has no live pooled clients, so
+// the result is empty and every saved machine reads as not connected.
+registerMockIpcHandler(
+  CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,
+  async (): Promise<ListAllWorkspacesResult> => ({ machines: [] }),
 );
 
 // iCloud-keychain sync (T4). The browser/mock environment has no macOS
