@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ConnectionRecord, MachineWorkspacesEntry } from '$shared/types/connections';
-import { buildMachineSections, statusText } from './home-all-machines';
+import {
+  buildMachineSections,
+  parseListAllWorkspacesResult,
+  statusText,
+} from './home-all-machines';
 
 const conn = (id: string, isLocal = false) => ({ id, isLocal }) as unknown as ConnectionRecord;
 const ws = (id: string, lastActivityAt: string | null) => ({
@@ -39,4 +43,16 @@ describe('statusText', () => {
   it('humanises daemon tokens', () => {
     expect(statusText('in_progress')).toBe('in progress');
   });
+});
+
+describe('parseListAllWorkspacesResult', () => {
+  it('accepts a result carrying a machines list', () => {
+    expect(parseListAllWorkspacesResult({ machines: [] })).toEqual({ machines: [] });
+  });
+  it.each([undefined, null, {}, { machines: 'x' }, { success: true, data: [] }])(
+    'rejects a response without a machines list: %j',
+    (raw) => {
+      expect(() => parseListAllWorkspacesResult(raw)).toThrow();
+    },
+  );
 });

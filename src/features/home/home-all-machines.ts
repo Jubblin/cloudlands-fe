@@ -1,6 +1,7 @@
 import { LOCAL_CONNECTION_ID } from '$shared/types/connections';
 import type {
   ConnectionRecord,
+  ListAllWorkspacesResult,
   MachineWorkspaceSummary,
   MachineWorkspacesEntry,
 } from '$shared/types/connections';
@@ -51,4 +52,11 @@ export function buildMachineSections(
   const rank = (section: MachineSection) =>
     section.isCurrent ? 0 : section.id === LOCAL_CONNECTION_ID ? 1 : 2;
   return sections.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
+}
+
+/** Validate the IPC result: only a main process that fans out serves `machines`. */
+export function parseListAllWorkspacesResult(raw: unknown): ListAllWorkspacesResult {
+  const machines = (raw as { machines?: unknown } | null | undefined)?.machines;
+  if (!Array.isArray(machines)) throw new Error('Unexpected all-machines workspace response');
+  return { machines: machines as ListAllWorkspacesResult['machines'] };
 }
