@@ -1,11 +1,14 @@
 import { call, takeLatest, put, cancelled, type SagaGenerator } from 'typed-redux-saga';
-import { CONNECTION_CHANNELS, type ListAllWorkspacesResult } from '$shared/types/connections';
+import { IPC_CHANNELS } from '$shared/ipc-registry';
+import type { ListAllWorkspacesResult } from '$shared/types/connections';
 import { listAllMachinesWorkspacesRequested } from './home-workspaces-slice';
 
 async function invokeListAllWorkspaces(): Promise<ListAllWorkspacesResult> {
   const api = typeof window !== 'undefined' ? window.electronAPI : undefined;
   if (!api) throw new Error('electronAPI is not available');
-  return (await api.invoke(CONNECTION_CHANNELS.LIST_ALL_WORKSPACES)) as ListAllWorkspacesResult;
+  return (await api.invoke(
+    IPC_CHANNELS.CONNECTIONS.LIST_ALL_WORKSPACES,
+  )) as ListAllWorkspacesResult;
 }
 
 function* listAllMachines(
