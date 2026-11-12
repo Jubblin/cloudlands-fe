@@ -2956,6 +2956,7 @@
   "home_allMachines_notConnected": "Sin conexión. Conecta este equipo para ver sus workspaces.",
   "home_allMachines_timeout": "Este equipo tardó demasiado en responder.",
   "home_allMachines_failed": "No se pudieron cargar los workspaces de este equipo.",
+  "home_allMachines_loadFailed": "No se pudieron cargar los workspaces de tus equipos.",
   "home_allMachines_empty": "No hay equipos conectados.",
   "home_allMachines_agentRunning": "Agente en ejecución",
   "home_workspace_details": "Vista previa del espacio de trabajo",

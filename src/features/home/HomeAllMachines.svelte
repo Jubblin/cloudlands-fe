@@ -77,7 +77,7 @@
 
   {#if failed}
     <ErrorState retryLabel={m.home_retry()} onRetry={() => void load()}>
-      {#snippet message()}{m.home_allMachines_failed()}{/snippet}
+      {#snippet message()}{m.home_allMachines_loadFailed()}{/snippet}
     </ErrorState>
   {:else if sections.length === 0}
     <EmptyState class="flex-1" emphasis="prominent">

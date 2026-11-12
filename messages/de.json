@@ -2956,6 +2956,7 @@
   "home_allMachines_notConnected": "Nicht verbunden. Verbinde diesen Rechner, um seine Workspaces zu sehen.",
   "home_allMachines_timeout": "Dieser Rechner hat zu lange nicht geantwortet.",
   "home_allMachines_failed": "Workspaces von diesem Rechner konnten nicht geladen werden.",
+  "home_allMachines_loadFailed": "Workspaces Ihrer Rechner konnten nicht geladen werden.",
   "home_allMachines_empty": "Es sind keine Rechner verbunden.",
   "home_allMachines_agentRunning": "Agent läuft",
   "home_workspace_details": "Arbeitsbereich-Vorschau",

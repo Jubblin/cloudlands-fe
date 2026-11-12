@@ -2956,6 +2956,7 @@
   "home_allMachines_notConnected": "Non connectée. Connectez cette machine pour voir ses workspaces.",
   "home_allMachines_timeout": "Cette machine a mis trop de temps à répondre.",
   "home_allMachines_failed": "Impossible de charger les workspaces de cette machine.",
+  "home_allMachines_loadFailed": "Impossible de charger les workspaces de vos machines.",
   "home_allMachines_empty": "Aucune machine connectée.",
   "home_allMachines_agentRunning": "Agent en cours",
   "home_workspace_details": "Aperçu de l’espace de travail",

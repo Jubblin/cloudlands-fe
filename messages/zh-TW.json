@@ -2956,6 +2956,7 @@
   "home_allMachines_notConnected": "未連線。連線這台機器後即可檢視其工作區。",
   "home_allMachines_timeout": "這台機器回應逾時。",
   "home_allMachines_failed": "無法載入這台機器的工作區。",
+  "home_allMachines_loadFailed": "無法載入你的機器上的工作區。",
   "home_allMachines_empty": "沒有已連線的機器。",
   "home_allMachines_agentRunning": "代理程式執行中",
   "home_workspace_details": "工作區預覽",

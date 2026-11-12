@@ -2956,6 +2956,7 @@
   "home_allMachines_notConnected": "未接続です。このマシンを接続するとワークスペースが表示されます。",
   "home_allMachines_timeout": "このマシンの応答に時間がかかりすぎました。",
   "home_allMachines_failed": "このマシンのワークスペースを読み込めませんでした。",
+  "home_allMachines_loadFailed": "お使いのマシンのワークスペースを読み込めませんでした。",
   "home_allMachines_empty": "接続中のマシンはありません。",
   "home_allMachines_agentRunning": "エージェント実行中",
   "home_workspace_details": "ワークスペースのプレビュー",
