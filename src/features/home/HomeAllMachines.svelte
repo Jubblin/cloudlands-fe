@@ -6,6 +6,7 @@
    * shows its own error with a retry instead of hiding the others.
    */
   import { onMount } from 'svelte';
+  import { isElectronPlatform } from '$lib/utils/platform-capabilities';
   import { Button } from '$lib/components/ui/button';
   import RelativeTime from '$lib/components/ui/RelativeTime.svelte';
   import { EmptyState, ErrorState } from '$lib/components/patterns/screen';
@@ -20,6 +21,9 @@
   import { formatInteger } from '$lib/i18n/format';
   import { m } from '$shared/paraglide/messages.js';
   import { activityTime, buildMachineSections, statusText } from './home-all-machines';
+
+  /** Only the desktop app's main process can reach other machines. */
+  let { desktop = isElectronPlatform() }: { desktop?: boolean } = $props();
 
   const connections$ = selectConnections();
   const currentId$ = selectCurrentConnectionId();
@@ -46,7 +50,7 @@
   }
 
   onMount(() => {
-    void load();
+    if (desktop) void load();
     return () => {
       requestSerial++;
     };
@@ -68,80 +72,86 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-  <div class="flex shrink-0 items-center justify-between gap-3 px-6 py-2">
-    <p class="type-caption text-muted-foreground">{m.home_allMachines_readOnly()}</p>
-    <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}>
-      {loading ? m.home_allMachines_refreshing() : m.home_allMachines_refresh()}
-    </Button>
-  </div>
-
-  {#if failed}
-    <ErrorState retryLabel={m.home_retry()} onRetry={() => void load()}>
-      {#snippet message()}{m.home_allMachines_loadFailed()}{/snippet}
-    </ErrorState>
-  {:else if sections.length === 0}
+  {#if !desktop}
     <EmptyState class="flex-1" emphasis="prominent">
-      {#snippet title()}<h2>{m.home_allMachines_empty()}</h2>{/snippet}
+      {#snippet title()}<h2>{m.home_allMachines_desktopOnly_title()}</h2>{/snippet}
+      {#snippet description()}<p>{m.home_allMachines_desktopOnly_description()}</p>{/snippet}
     </EmptyState>
   {:else}
-    <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-6" aria-busy={loading}>
-      {#each sections as section (section.id)}
-        <section class="mt-4 first:mt-0" aria-labelledby={`all-machines-${section.id}`}>
-          <h2
-            id={`all-machines-${section.id}`}
-            class="type-body flex items-center gap-2 border-b border-border pb-2 font-medium"
-          >
-            <span class="truncate">{section.label}</span>
-            {#if section.isCurrent}
-              <span
-                class="type-caption rounded-full border border-border px-2 text-muted-foreground"
-                >{m.home_allMachines_thisWindow()}</span
-              >
-            {/if}
-            {#if section.workspaces}
-              <span class="type-caption ml-auto text-muted-foreground"
-                >{formatInteger(section.workspaces.length)}</span
-              >
-            {/if}
-          </h2>
-          {#if section.failure}
-            <div class="flex items-center justify-between gap-3 py-3" role="status">
-              <p class="type-caption text-muted-foreground">{failureText(section.failure)}</p>
-              <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}
-                >{m.home_retry()}</Button
-              >
-            </div>
-          {:else if section.workspaces && section.workspaces.length === 0}
-            <p class="type-caption py-3 text-muted-foreground">
-              {m.home_allMachines_noWorkspaces()}
-            </p>
-          {:else if section.workspaces}
-            <ul class="m-0 list-none p-0">
-              {#each section.workspaces as workspace (workspace.id)}
-                <li class="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
-                  <div class="min-w-0 flex-1">
-                    <p class="type-body truncate font-medium">{workspace.title}</p>
-                    <p class="type-caption truncate text-muted-foreground">
-                      {[workspace.repositoryName, workspace.branch].filter(Boolean).join(' · ')}
-                    </p>
-                  </div>
-                  <span class="type-caption shrink-0 text-muted-foreground">
-                    {workspace.activity === 'agent_running'
-                      ? m.home_allMachines_agentRunning()
-                      : statusText(workspace.displayStatus ?? workspace.status)}
-                  </span>
-                  <span class="type-caption w-16 shrink-0 text-right text-muted-foreground">
-                    {#if activityTime(workspace) > 0}<RelativeTime
-                        date={activityTime(workspace)}
-                        compact
-                      />{:else}<span aria-hidden="true">—</span>{/if}
-                  </span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </section>
-      {/each}
+    <div class="flex shrink-0 items-center justify-between gap-3 px-6 py-2">
+      <p class="type-caption text-muted-foreground">{m.home_allMachines_readOnly()}</p>
+      <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}>
+        {loading ? m.home_allMachines_refreshing() : m.home_allMachines_refresh()}
+      </Button>
     </div>
+    {#if failed}
+      <ErrorState retryLabel={m.home_retry()} onRetry={() => void load()}>
+        {#snippet message()}{m.home_allMachines_loadFailed()}{/snippet}
+      </ErrorState>
+    {:else if sections.length === 0}
+      <EmptyState class="flex-1" emphasis="prominent">
+        {#snippet title()}<h2>{m.home_allMachines_empty()}</h2>{/snippet}
+      </EmptyState>
+    {:else}
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-6" aria-busy={loading}>
+        {#each sections as section (section.id)}
+          <section class="mt-4 first:mt-0" aria-labelledby={`all-machines-${section.id}`}>
+            <h2
+              id={`all-machines-${section.id}`}
+              class="type-body flex items-center gap-2 border-b border-border pb-2 font-medium"
+            >
+              <span class="truncate">{section.label}</span>
+              {#if section.isCurrent}
+                <span
+                  class="type-caption rounded-full border border-border px-2 text-muted-foreground"
+                  >{m.home_allMachines_thisWindow()}</span
+                >
+              {/if}
+              {#if section.workspaces}
+                <span class="type-caption ml-auto text-muted-foreground"
+                  >{formatInteger(section.workspaces.length)}</span
+                >
+              {/if}
+            </h2>
+            {#if section.failure}
+              <div class="flex items-center justify-between gap-3 py-3" role="status">
+                <p class="type-caption text-muted-foreground">{failureText(section.failure)}</p>
+                <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}
+                  >{m.home_retry()}</Button
+                >
+              </div>
+            {:else if section.workspaces && section.workspaces.length === 0}
+              <p class="type-caption py-3 text-muted-foreground">
+                {m.home_allMachines_noWorkspaces()}
+              </p>
+            {:else if section.workspaces}
+              <ul class="m-0 list-none p-0">
+                {#each section.workspaces as workspace (workspace.id)}
+                  <li class="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
+                    <div class="min-w-0 flex-1">
+                      <p class="type-body truncate font-medium">{workspace.title}</p>
+                      <p class="type-caption truncate text-muted-foreground">
+                        {[workspace.repositoryName, workspace.branch].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <span class="type-caption shrink-0 text-muted-foreground">
+                      {workspace.activity === 'agent_running'
+                        ? m.home_allMachines_agentRunning()
+                        : statusText(workspace.displayStatus ?? workspace.status)}
+                    </span>
+                    <span class="type-caption w-16 shrink-0 text-right text-muted-foreground">
+                      {#if activityTime(workspace) > 0}<RelativeTime
+                          date={activityTime(workspace)}
+                          compact
+                        />{:else}<span aria-hidden="true">—</span>{/if}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
