@@ -226,7 +226,7 @@ import {
 } from '../../../main/ipc-schemas';
 import { createValidatedHandler } from '../../../main/ipc-validation-middleware';
 import { getBackendIdForWebContents, getFocusedWindowBackendId } from '../../../main/window';
-import { getRendererWebContents } from '../../../main/window-backend';
+import { getRendererWebContents, getWindowForWebContents } from '../../../main/window-backend';
 import { readWindowRail } from '../../../main/machine-rail-state';
 import { PresenceAggregator } from './presence-aggregator';
 import type { PresenceReportResult, PresenceUpdateResult } from '$shared/types/presence';
@@ -5603,13 +5603,21 @@ function registerConnectionsHandlers(): void {
     CONNECTIONS.OPEN,
     createValidatedHandler(
       ConnectionsOpenSchema,
-      async (event, { id }) => {
+      async (event, { id, workspaceId }) => {
         const allowed = captureCollaborationPolicy(event.sender?.id ?? null);
         const invited = (await guestSessionsStore.findById(id)) !== null;
         const mayOpen = () => allowed() && !event.sender.isDestroyed();
         if (invited && !mayOpen()) throw new Error('Multiplayer is unavailable');
         try {
-          const opened = await openBackendWindow(id, invited ? { mayOpen } : undefined);
+          // Open inside the window the click came from when its machine rail
+          // can host the machine; otherwise the machine's own window.
+          const parentWindow =
+            workspaceId && event.sender ? getWindowForWebContents(event.sender) : null;
+          const opened = await openBackendWindow(id, {
+            ...(invited ? { mayOpen } : {}),
+            ...(workspaceId ? { workspaceId } : {}),
+            ...(parentWindow ? { parentWindow } : {}),
+          });
           return { status: 'opened', id: opened.id } satisfies OpenConnectionResult;
         } catch (error) {
           if (error instanceof ConnectionSecretUnavailableError) {

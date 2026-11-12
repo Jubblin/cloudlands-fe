@@ -15,6 +15,8 @@ test('lists every machine, marks this window, and keeps failures local to their 
   await expect(page.getByText('This window')).toHaveCount(1);
   await expect(page.getByText('Fix login bug')).toBeVisible();
   await expect(page.getByText('Agent running')).toBeVisible();
+  await expect(page.getByRole('listbox', { name: /This machine \(local\)/ })).toBeVisible();
+  await expect(page.getByRole('option')).toHaveCount(3);
   await expect(page.getByText('Draft release notes')).toBeVisible();
   await expect(page.getByText('This machine took too long to answer.')).toBeVisible();
   await expect(page.getByText(/Not connected\./)).toBeVisible();
@@ -62,4 +64,27 @@ test('the web build explains it needs the desktop app and offers no refresh', as
   await expect(page.getByRole('heading', { level: 2 })).toBeVisible();
   await expect(page.getByRole('button')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Mac Studio/ })).toHaveCount(0);
+});
+
+test('selecting a row, by click or by keyboard, opens that workspace on its own machine', async ({
+  mount,
+  page,
+}) => {
+  await mount(Preview, scene('mixed'));
+  const opened = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __openedWorkspaces: Array<[string, string | undefined]> })
+          .__openedWorkspaces,
+    );
+
+  await page.getByRole('option', { name: /Draft release notes/ }).click();
+  await expect.poll(opened).toEqual([['studio', 'release-notes']]);
+
+  await page.getByRole('option', { name: /Add dark mode support/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(opened).toEqual([
+    ['studio', 'release-notes'],
+    ['local', 'dark-mode'],
+  ]);
 });

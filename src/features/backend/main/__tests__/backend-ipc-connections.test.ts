@@ -1550,6 +1550,142 @@ describe('connections:* IPC handlers', () => {
     ]);
   });
 
+  describe('connections:open with a workspace', () => {
+    it('shows the workspace in the backend window only after the window opened', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      const handler = findHandler('connections:open');
+      expect(handler).toBeDefined();
+
+      await expect(handler!({}, { id: 'remote-1', workspaceId: 'ws-9' })).resolves.toEqual({
+        status: 'opened',
+        id: 'remote-1',
+      });
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+      expect(showWorkspace).toHaveBeenCalledWith('remote-1', 'ws-9');
+      expect(openOrFocus.mock.invocationCallOrder[0]).toBeLessThan(
+        showWorkspace.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not show anything when no workspace was requested', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      await findHandler('connections:open')!({}, { id: 'remote-1' });
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+      expect(showWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('opens inside the window the click came from when its machine rail can host the machine', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const send = vi.fn();
+      const window = {
+        id: 7,
+        isDestroyed: () => false,
+        webContents: { send, isDestroyed: () => false },
+      };
+      vi.mocked(BrowserWindow.fromWebContents).mockImplementation((sender) =>
+        sender === window.webContents ? (window as never) : null,
+      );
+      const openInWindow = vi.fn(async () => true);
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openInWindow,
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+
+      await expect(
+        findHandler('connections:open')!(
+          { sender: window.webContents },
+          { id: 'remote-1', workspaceId: 'ws-9' },
+        ),
+      ).resolves.toEqual({ status: 'opened', id: 'remote-1' });
+      expect(openInWindow).toHaveBeenCalledWith('remote-1', window, 'ws-9', undefined);
+      expect(openOrFocus).not.toHaveBeenCalled();
+      expect(showWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the backend window when the rail does not take the machine', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const window = { id: 7, isDestroyed: () => false, webContents: { isDestroyed: () => false } };
+      vi.mocked(BrowserWindow.fromWebContents).mockImplementation((sender) =>
+        sender === window.webContents ? (window as never) : null,
+      );
+      const openInWindow = vi.fn(async () => false);
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openInWindow,
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+
+      await findHandler('connections:open')!(
+        { sender: window.webContents },
+        { id: 'remote-1', workspaceId: 'ws-9' },
+      );
+      expect(openInWindow).toHaveBeenCalled();
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+      expect(showWorkspace).toHaveBeenCalledWith('remote-1', 'ws-9');
+    });
+
+    it('opens a machine without a workspace in its own window and never tries the rail', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const openInWindow = vi.fn(async () => true);
+      mod.__setBackendWindowHooksForTesting({
+        openInWindow,
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+      });
+      mod.registerBackendHandlers();
+      await findHandler('connections:open')!(
+        { sender: { isDestroyed: () => false } },
+        { id: 'remote-1' },
+      );
+      expect(openInWindow).not.toHaveBeenCalled();
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+    });
+
+    it('never shows a workspace when the window could not be opened', async () => {
+      store.getDecryptedToken.mockResolvedValue(null);
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      await expect(
+        findHandler('connections:open')!({}, { id: 'remote-1', workspaceId: 'ws-9' }),
+      ).rejects.toThrow(/no stored token/i);
+      expect(openOrFocus).not.toHaveBeenCalled();
+      expect(showWorkspace).not.toHaveBeenCalled();
+    });
+  });
+
   describe('connections:list-all-workspaces', () => {
     type FakeClient = {
       status: string;

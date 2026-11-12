@@ -4,6 +4,8 @@ import { installMockElectronBridge } from './ct-mock-electron-bridge';
 import { connectionsListReceived } from '$store/renderer/slices/connections/connections-slice';
 import { selectConnections } from '$store/renderer/slices/connections/connections-selectors';
 import { homeAllMachinesSaga } from '$features/home/home-all-machines-saga';
+import { openConnectionRequested } from '$store/renderer/slices/connections/connections-slice';
+import { put, takeEvery } from 'typed-redux-saga';
 import {
   CONNECTION_CHANNELS,
   type ConnectionRecord,
@@ -101,8 +103,18 @@ export function setupHomeAllMachinesFixture(scenario: HomeAllMachinesScenario) {
     connectionsListReceived({ connections, activeId: 'local', windowBackendId: 'local' }),
   );
   const stop = store.runSaga(homeAllMachinesSaga);
+  // Stands in for the connections saga: records each open request and settles it.
+  const opened: Array<[string, string | undefined]> = [];
+  (window as unknown as { __openedWorkspaces?: typeof opened }).__openedWorkspaces = opened;
+  const stopOpen = store.runSaga(function* () {
+    yield* takeEvery(openConnectionRequested, function* (action) {
+      opened.push([action.payload[0], action.payload[1]]);
+      yield* put(action.success({ status: 'opened', id: action.payload[0] }));
+    });
+  });
   return () => {
     stop();
+    stopOpen();
     window.electronAPI = previousApi;
     registerMockIpcHandler(
       CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,

@@ -8,6 +8,7 @@
   import { onMount } from 'svelte';
   import { isElectronPlatform } from '$lib/utils/platform-capabilities';
   import { Button } from '$lib/components/ui/button';
+  import { ListRow, ListView } from '$lib/components/patterns/collection';
   import RelativeTime from '$lib/components/ui/RelativeTime.svelte';
   import { EmptyState, ErrorState } from '$lib/components/patterns/screen';
   import { formatConnectionLabel } from '$lib/utils/connection-label';
@@ -15,12 +16,22 @@
     selectConnections,
     selectCurrentConnectionId,
   } from '$store/renderer/slices/connections/connections-selectors';
-  import { LOCAL_CONNECTION_ID, type MachineWorkspacesEntry } from '$shared/types/connections';
+  import {
+    LOCAL_CONNECTION_ID,
+    type MachineWorkspaceSummary,
+    type MachineWorkspacesEntry,
+  } from '$shared/types/connections';
   import { store } from '$store/renderer/store';
   import { listAllMachinesWorkspacesRequested } from './home-workspaces-slice';
+  import { openConnectionRequested } from '$store/renderer/slices/connections/connections-slice';
   import { formatInteger } from '$lib/i18n/format';
   import { m } from '$shared/paraglide/messages.js';
-  import { activityTime, buildMachineSections, statusText } from './home-all-machines';
+  import {
+    activityTime,
+    buildMachineSections,
+    statusText,
+    type MachineSection,
+  } from './home-all-machines';
 
   /** Only the desktop app's main process can reach other machines. */
   let { desktop = isElectronPlatform() }: { desktop?: boolean } = $props();
@@ -32,6 +43,8 @@
   let loading = $state(true);
   let failed = $state(false);
   let requestSerial = 0;
+  /** Machines whose last open attempt failed; cleared on the next attempt. */
+  let openErrors = $state<Record<string, boolean>>({});
 
   async function load() {
     const serial = ++requestSerial;
@@ -46,6 +59,17 @@
       failed = true;
     } finally {
       if (serial === requestSerial) loading = false;
+    }
+  }
+
+  /** Open (or focus) the machine's own window and show the workspace there. */
+  async function openWorkspace(section: MachineSection, workspace: MachineWorkspaceSummary) {
+    openErrors = { ...openErrors, [section.id]: false };
+    try {
+      const result = await store.dispatch(openConnectionRequested(section.id, workspace.id));
+      if (result.status !== 'opened') openErrors = { ...openErrors, [section.id]: true };
+    } catch {
+      openErrors = { ...openErrors, [section.id]: true };
     }
   }
 
@@ -79,7 +103,7 @@
     </EmptyState>
   {:else}
     <div class="flex shrink-0 items-center justify-between gap-3 px-6 py-2">
-      <p class="type-caption text-muted-foreground">{m.home_allMachines_readOnly()}</p>
+      <p class="type-caption text-muted-foreground">{m.home_allMachines_caption()}</p>
       <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}>
         {loading ? m.home_allMachines_refreshing() : m.home_allMachines_refresh()}
       </Button>
@@ -125,29 +149,47 @@
                 {m.home_allMachines_noWorkspaces()}
               </p>
             {:else if section.workspaces}
-              <ul class="m-0 list-none p-0">
-                {#each section.workspaces as workspace (workspace.id)}
-                  <li class="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
-                    <div class="min-w-0 flex-1">
-                      <p class="type-body truncate font-medium">{workspace.title}</p>
-                      <p class="type-caption truncate text-muted-foreground">
-                        {[workspace.repositoryName, workspace.branch].filter(Boolean).join(' · ')}
-                      </p>
-                    </div>
-                    <span class="type-caption shrink-0 text-muted-foreground">
-                      {workspace.activity === 'agent_running'
-                        ? m.home_allMachines_agentRunning()
-                        : statusText(workspace.displayStatus ?? workspace.status)}
-                    </span>
-                    <span class="type-caption w-16 shrink-0 text-right text-muted-foreground">
-                      {#if activityTime(workspace) > 0}<RelativeTime
-                          date={activityTime(workspace)}
-                          compact
-                        />{:else}<span aria-hidden="true">—</span>{/if}
-                    </span>
-                  </li>
-                {/each}
-              </ul>
+              <ListView
+                items={section.workspaces}
+                getKey={(workspace) => workspace.id}
+                getText={(workspace) => workspace.title}
+                ariaLabel={section.label}
+                virtualize={false}
+                selectable="single"
+                selectedKeys={[]}
+                onActivate={(workspace) => void openWorkspace(section, workspace)}
+              >
+                {#snippet row({ item: workspace })}
+                  <ListRow>
+                    {#snippet title()}{workspace.title}{/snippet}
+                    {#snippet description()}
+                      <span class="block truncate"
+                        >{[workspace.repositoryName, workspace.branch]
+                          .filter(Boolean)
+                          .join(' · ')}</span
+                      >
+                    {/snippet}
+                    {#snippet trailing()}
+                      <span>
+                        {workspace.activity === 'agent_running'
+                          ? m.home_allMachines_agentRunning()
+                          : statusText(workspace.displayStatus ?? workspace.status)}
+                      </span>
+                      <span class="w-16 text-right">
+                        {#if activityTime(workspace) > 0}<RelativeTime
+                            date={activityTime(workspace)}
+                            compact
+                          />{:else}<span aria-hidden="true">—</span>{/if}
+                      </span>
+                    {/snippet}
+                  </ListRow>
+                {/snippet}
+              </ListView>
+              {#if openErrors[section.id]}
+                <p class="type-caption py-2 text-danger" role="alert">
+                  {m.home_allMachines_openFailed({ machine: section.label })}
+                </p>
+              {/if}
             {/if}
           </section>
         {/each}

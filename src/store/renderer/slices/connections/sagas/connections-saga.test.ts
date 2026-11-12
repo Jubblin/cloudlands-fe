@@ -682,6 +682,35 @@ describe('connectionsSaga', () => {
     await run.task.toPromise();
   });
 
+  it('passes the requested workspace to the open call, and only when one was requested', async () => {
+    invoke.mockImplementation(async (channel: string, params?: unknown) => {
+      if (channel === CONNECTION_CHANNELS.LIST)
+        return { connections: [LOCAL, REMOTE], activeId: LOCAL.id, windowBackendId: LOCAL.id };
+      if (channel === CONNECTION_CHANNELS.OPEN)
+        return { status: 'opened', id: (params as { id: string }).id };
+      return {};
+    });
+    const run = start();
+    await settle();
+
+    const withWorkspace = openConnectionRequested(REMOTE.id, 'ws-42');
+    run.channel.put(withWorkspace);
+    await expect(withWorkspace.promise).resolves.toEqual({ status: 'opened', id: REMOTE.id });
+    expect(invoke).toHaveBeenCalledWith(CONNECTION_CHANNELS.OPEN, {
+      id: REMOTE.id,
+      workspaceId: 'ws-42',
+    });
+
+    invoke.mockClear();
+    const plain = openConnectionRequested(REMOTE.id);
+    run.channel.put(plain);
+    await expect(plain.promise).resolves.toEqual({ status: 'opened', id: REMOTE.id });
+    expect(invoke).toHaveBeenCalledWith(CONNECTION_CHANNELS.OPEN, { id: REMOTE.id });
+
+    run.task.cancel();
+    await run.task.toPromise();
+  });
+
   it('serializes repeat same-id opens and settles every promise', async () => {
     const deferred: Array<(value: { status: 'opened'; id: string }) => void> = [];
     invoke.mockImplementation(async (channel: string) => {
