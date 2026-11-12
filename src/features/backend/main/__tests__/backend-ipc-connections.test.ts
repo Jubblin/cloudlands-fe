@@ -1518,6 +1518,65 @@ describe('connections:* IPC handlers', () => {
     ]);
   });
 
+  describe('connections:open with a workspace', () => {
+    it('shows the workspace in the backend window only after the window opened', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      const handler = findHandler('connections:open');
+      expect(handler).toBeDefined();
+
+      await expect(handler!({}, { id: 'remote-1', workspaceId: 'ws-9' })).resolves.toEqual({
+        status: 'opened',
+        id: 'remote-1',
+      });
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+      expect(showWorkspace).toHaveBeenCalledWith('remote-1', 'ws-9');
+      expect(openOrFocus.mock.invocationCallOrder[0]).toBeLessThan(
+        showWorkspace.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not show anything when no workspace was requested', async () => {
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      await findHandler('connections:open')!({}, { id: 'remote-1' });
+      expect(openOrFocus).toHaveBeenCalledWith('remote-1');
+      expect(showWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('never shows a workspace when the window could not be opened', async () => {
+      store.getDecryptedToken.mockResolvedValue(null);
+      const { mod, openOrFocus } = await loadModule();
+      const showWorkspace = vi.fn();
+      mod.__setBackendWindowHooksForTesting({
+        openOrFocus,
+        ensureLocalWindowBeforeClose: vi.fn(),
+        closeForBackend: vi.fn(),
+        showWorkspace,
+      });
+      mod.registerBackendHandlers();
+      await expect(
+        findHandler('connections:open')!({}, { id: 'remote-1', workspaceId: 'ws-9' }),
+      ).rejects.toThrow(/no stored token/i);
+      expect(openOrFocus).not.toHaveBeenCalled();
+      expect(showWorkspace).not.toHaveBeenCalled();
+    });
+  });
+
   describe('connections:list-all-workspaces', () => {
     type FakeClient = {
       status: string;

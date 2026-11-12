@@ -740,7 +740,7 @@ function* rotateConnectionSecret(
 }
 
 function* openConnection(action: ReturnType<typeof openConnectionRequested>): SagaGenerator<void> {
-  const id = action.payload[0];
+  const [id, workspaceId] = action.payload;
   let settled = false;
   yield* put(openOperationStarted(id));
   try {
@@ -761,7 +761,7 @@ function* openConnection(action: ReturnType<typeof openConnectionRequested>): Sa
       )
         throw new Error('Invitation is no longer current');
     }
-    const result = yield* call(invokeOpenConnection, { id });
+    const result = yield* call(invokeOpenConnection, workspaceId ? { id, workspaceId } : { id });
     yield* put(openOperationSettled(id));
     yield* put(action.success(result));
     settled = true;

@@ -493,6 +493,8 @@ export interface ConnectionTunnelResult {
 /** `connections:open` params. */
 export interface OpenConnectionParams {
   id: string;
+  /** After opening or focusing the backend's window, show this workspace in it. */
+  workspaceId?: string;
 }
 
 /** `connections:open` result: echoes the opened or focused backend id. */

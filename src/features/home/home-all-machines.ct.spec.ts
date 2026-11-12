@@ -15,6 +15,8 @@ test('lists every machine, marks this window, and keeps failures local to their 
   await expect(page.getByText('This window')).toHaveCount(1);
   await expect(page.getByText('Fix login bug')).toBeVisible();
   await expect(page.getByText('Agent running')).toBeVisible();
+  await expect(page.getByRole('listbox', { name: /This machine \(local\)/ })).toBeVisible();
+  await expect(page.getByRole('option')).toHaveCount(3);
   await expect(page.getByText('Draft release notes')).toBeVisible();
   await expect(page.getByText('This machine took too long to answer.')).toBeVisible();
   await expect(page.getByText(/Not connected\./)).toBeVisible();

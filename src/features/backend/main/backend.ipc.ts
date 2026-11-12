@@ -1302,6 +1302,8 @@ let keychainSyncLifecycle: KeychainSyncLifecycle | null = null;
  */
 interface BackendWindowHooks {
   openOrFocus?(backendId: string): void | Promise<void>;
+  /** Show a workspace in the backend's window (after {@link openOrFocus}). */
+  showWorkspace?(backendId: string, workspaceId: string): void | Promise<void>;
   ensureLocalWindowBeforeClose?(backendId: string): void | Promise<void>;
   closeForBackend?(backendId: string): void | Promise<void>;
 }
@@ -1311,6 +1313,12 @@ const defaultWindowHooks: BackendWindowHooks = {
       openOrFocusWindowsForBackend: (id: string) => Promise<void>;
     };
     await mod.openOrFocusWindowsForBackend(backendId);
+  },
+  async showWorkspace(backendId, workspaceId) {
+    const mod = (await import('../../../main/window')) as unknown as {
+      showWorkspaceInBackendWindow: (backendId: string, workspaceId: string) => boolean;
+    };
+    mod.showWorkspaceInBackendWindow(backendId, workspaceId);
   },
   async ensureLocalWindowBeforeClose(backendId) {
     const mod = (await import('../../../main/window')) as unknown as {
@@ -5406,13 +5414,14 @@ function registerConnectionsHandlers(): void {
     CONNECTIONS.OPEN,
     createValidatedHandler(
       ConnectionsOpenSchema,
-      async (event, { id }) => {
+      async (event, { id, workspaceId }) => {
         const allowed = captureCollaborationPolicy(event.sender?.id ?? null);
         const invited = (await guestSessionsStore.findById(id)) !== null;
         const mayOpen = () => allowed() && !event.sender.isDestroyed();
         if (invited && !mayOpen()) throw new Error('Multiplayer is unavailable');
         try {
           const opened = await openBackendWindow(id, invited ? { mayOpen } : undefined);
+          if (workspaceId) await windowHooks.showWorkspace?.(opened.id, workspaceId);
           return { status: 'opened', id: opened.id } satisfies OpenConnectionResult;
         } catch (error) {
           if (error instanceof ConnectionSecretUnavailableError) {
