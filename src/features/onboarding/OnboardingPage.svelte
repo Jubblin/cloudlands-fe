@@ -22,6 +22,7 @@
   import {
     enhancePrompt,
     EnhancePromptUnavailableError,
+    enhanceUnavailableDetail,
     isEnhancePromptAvailable,
   } from '$lib/client/live/live-prompt-enhancement';
   import {
@@ -1150,6 +1151,7 @@
           : error instanceof Error && error.message
             ? m.onboarding_page_enhanceFailedWithMessage_error({ message: error.message })
             : m.onboarding_page_enhanceFailed_error(),
+        enhanceUnavailableDetail(error),
       );
     } finally {
       isOnboardingEnhancing = false;
