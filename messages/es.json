@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "Este equipo tardó demasiado en responder.",
   "home_allMachines_failed": "No se pudieron cargar los workspaces de este equipo.",
   "home_allMachines_loadFailed": "No se pudieron cargar los workspaces de tus equipos.",
+  "home_allMachines_desktopOnly_title": "Todos los equipos requiere la app de escritorio",
+  "home_allMachines_desktopOnly_description": "Abre la app de escritorio de Intent para ver los workspaces de todos los equipos conectados. Esta vista web solo muestra este equipo.",
   "home_allMachines_empty": "No hay equipos conectados.",
   "home_allMachines_agentRunning": "Agente en ejecución",
   "home_workspace_details": "Vista previa del espacio de trabajo",

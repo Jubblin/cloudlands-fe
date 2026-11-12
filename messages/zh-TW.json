@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "這台機器回應逾時。",
   "home_allMachines_failed": "無法載入這台機器的工作區。",
   "home_allMachines_loadFailed": "無法載入你的機器上的工作區。",
+  "home_allMachines_desktopOnly_title": "「所有機器」需要桌面應用程式",
+  "home_allMachines_desktopOnly_description": "請開啟 Intent 桌面應用程式，檢視所有已連線機器上的工作區。此網頁檢視只能顯示本機。",
   "home_allMachines_empty": "沒有已連線的機器。",
   "home_allMachines_agentRunning": "代理程式執行中",
   "home_workspace_details": "工作區預覽",

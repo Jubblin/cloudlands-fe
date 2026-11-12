@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "このマシンの応答に時間がかかりすぎました。",
   "home_allMachines_failed": "このマシンのワークスペースを読み込めませんでした。",
   "home_allMachines_loadFailed": "お使いのマシンのワークスペースを読み込めませんでした。",
+  "home_allMachines_desktopOnly_title": "すべてのマシンにはデスクトップアプリが必要です",
+  "home_allMachines_desktopOnly_description": "接続中のすべてのマシンのワークスペースを表示するには、Intent デスクトップアプリを開いてください。このウェブ表示ではこのマシンのみ表示できます。",
   "home_allMachines_empty": "接続中のマシンはありません。",
   "home_allMachines_agentRunning": "エージェント実行中",
   "home_workspace_details": "ワークスペースのプレビュー",

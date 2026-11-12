@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "这台机器响应超时。",
   "home_allMachines_failed": "无法加载这台机器的工作区。",
   "home_allMachines_loadFailed": "无法加载你的机器上的工作区。",
+  "home_allMachines_desktopOnly_title": "“所有机器”需要桌面应用",
+  "home_allMachines_desktopOnly_description": "请打开 Intent 桌面应用，查看所有已连接机器上的工作区。此网页视图只能显示本机。",
   "home_allMachines_empty": "没有已连接的机器。",
   "home_allMachines_agentRunning": "智能体运行中",
   "home_workspace_details": "工作区预览",

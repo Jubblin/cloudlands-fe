@@ -1,7 +1,7 @@
 import { test, expect } from '../../test/ct-test';
 import Preview from './home-all-machines.preview.svelte';
 
-const scene = (state: 'mixed' | 'all-empty') => ({
+const scene = (state: 'mixed' | 'all-empty' | 'web') => ({
   hooksConfig: { previewScene: { scene: 'home-all-machines', state } },
 });
 
@@ -52,4 +52,14 @@ test('stays within the viewport at narrow width', async ({ mount, page }, testIn
 test('shows an empty line for machines with no workspaces', async ({ mount, page }) => {
   await mount(Preview, scene('all-empty'));
   await expect(page.getByText('No workspaces on this machine.')).toHaveCount(4);
+});
+
+test('the web build explains it needs the desktop app and offers no refresh', async ({
+  mount,
+  page,
+}) => {
+  await mount(Preview, scene('web'));
+  await expect(page.getByRole('heading', { level: 2 })).toBeVisible();
+  await expect(page.getByRole('button')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /Mac Studio/ })).toHaveCount(0);
 });

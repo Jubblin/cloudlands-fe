@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "이 컴퓨터가 너무 오래 응답하지 않았습니다.",
   "home_allMachines_failed": "이 컴퓨터의 워크스페이스를 불러오지 못했습니다.",
   "home_allMachines_loadFailed": "내 컴퓨터의 워크스페이스를 불러오지 못했습니다.",
+  "home_allMachines_desktopOnly_title": "모든 컴퓨터는 데스크톱 앱이 필요합니다",
+  "home_allMachines_desktopOnly_description": "연결된 모든 컴퓨터의 워크스페이스를 보려면 Intent 데스크톱 앱을 여세요. 이 웹 화면에서는 이 컴퓨터만 볼 수 있습니다.",
   "home_allMachines_empty": "연결된 컴퓨터가 없습니다.",
   "home_allMachines_agentRunning": "에이전트 실행 중",
   "home_workspace_details": "워크스페이스 미리보기",

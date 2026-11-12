@@ -2957,6 +2957,8 @@
   "home_allMachines_timeout": "This machine took too long to answer.",
   "home_allMachines_failed": "Could not load workspaces from this machine.",
   "home_allMachines_loadFailed": "Could not load workspaces from your machines.",
+  "home_allMachines_desktopOnly_title": "All machines needs the desktop app",
+  "home_allMachines_desktopOnly_description": "Open the Intent desktop app to see workspaces on every connected machine. This web view can only show this machine.",
   "home_allMachines_empty": "No machines are connected.",
   "home_allMachines_agentRunning": "Agent running",
   "home_workspace_details": "Workspace preview",
