@@ -1518,6 +1518,120 @@ describe('connections:* IPC handlers', () => {
     ]);
   });
 
+  describe('connections:list-all-workspaces', () => {
+    type FakeClient = {
+      status: string;
+      request: ReturnType<typeof vi.fn>;
+    };
+    async function bootWithLocalAndRemote() {
+      const { mod } = await loadModule();
+      const local = mod.getBackendClient() as unknown as FakeClient;
+      local.status = 'connected';
+      const remote = (await mod.connectBackendClient('remote-1')) as unknown as FakeClient;
+      remote.status = 'connected';
+      mod.registerBackendHandlers();
+      const handler = findHandler('connections:list-all-workspaces');
+      expect(handler).toBeDefined();
+      return { local, remote, handler: handler! };
+    }
+
+    it('asks every connected backend for workspace.list and maps the rows', async () => {
+      const { local, remote, handler } = await bootWithLocalAndRemote();
+      local.request.mockImplementation(async (method: string) =>
+        method === 'workspace.list'
+          ? {
+              workspaces: [
+                {
+                  id: 'w1',
+                  title: 'Fix login',
+                  branch: 'fix-login',
+                  status: 'active',
+                  activity: 'agent_running',
+                  lastContentActivity: '2026-11-11T10:00:00Z',
+                },
+              ],
+            }
+          : {},
+      );
+      remote.request.mockImplementation(async (method: string) =>
+        method === 'workspace.list'
+          ? { workspaces: [{ id: 'w2', name: 'Named only', createdAt: '2026-01-01T00:00:00Z' }] }
+          : {},
+      );
+
+      const result = (await handler({}, undefined)) as {
+        machines: Array<{ id: string; ok: boolean; workspaces?: Array<Record<string, unknown>> }>;
+      };
+      const byId = new Map(result.machines.map((machine) => [machine.id, machine]));
+      expect(byId.get('local')).toMatchObject({
+        ok: true,
+        workspaces: [
+          {
+            id: 'w1',
+            title: 'Fix login',
+            branch: 'fix-login',
+            activity: 'agent_running',
+            lastActivityAt: '2026-11-11T10:00:00Z',
+          },
+        ],
+      });
+      expect(byId.get('remote-1')).toMatchObject({
+        ok: true,
+        workspaces: [{ id: 'w2', title: 'Named only', lastActivityAt: '2026-01-01T00:00:00Z' }],
+      });
+      expect(remote.request).toHaveBeenCalledWith('workspace.list', undefined, {
+        timeoutMs: expect.any(Number),
+      });
+    });
+
+    it('reports a machine that is not connected without sending it a request', async () => {
+      const { local, remote, handler } = await bootWithLocalAndRemote();
+      remote.status = 'disconnected';
+      local.request.mockResolvedValue({ workspaces: [] });
+      remote.request.mockClear();
+
+      const result = (await handler({}, undefined)) as { machines: Array<Record<string, unknown>> };
+      expect(result.machines).toContainEqual({
+        id: 'remote-1',
+        ok: false,
+        reason: 'not-connected',
+      });
+      expect(result.machines).toContainEqual({ id: 'local', ok: true, workspaces: [] });
+      expect(remote.request).not.toHaveBeenCalled();
+    });
+
+    it('one failing or slow machine never hides the others', async () => {
+      const { local, remote, handler } = await bootWithLocalAndRemote();
+      local.request.mockResolvedValue({
+        workspaces: [{ id: 'w1', title: 'Only local', branch: 'b', status: 'active' }],
+      });
+      remote.request.mockRejectedValue(new Error('Request timed out after 8000ms'));
+
+      const result = (await handler({}, undefined)) as { machines: Array<Record<string, unknown>> };
+      expect(result.machines).toContainEqual({ id: 'remote-1', ok: false, reason: 'timeout' });
+      expect(result.machines).toContainEqual(expect.objectContaining({ id: 'local', ok: true }));
+
+      remote.request.mockRejectedValue(new Error('socket hang up'));
+      const again = (await handler({}, undefined)) as { machines: Array<Record<string, unknown>> };
+      expect(again.machines).toContainEqual({ id: 'remote-1', ok: false, reason: 'failed' });
+    });
+
+    it('skips rows without an id instead of passing them to the renderer', async () => {
+      const { local, remote, handler } = await bootWithLocalAndRemote();
+      remote.request.mockResolvedValue({ workspaces: [] });
+      local.request.mockResolvedValue({
+        workspaces: [null, 'x', { title: 'no id' }, { id: 'ok', title: 'Keeps' }],
+      });
+
+      const result = (await handler({}, undefined)) as {
+        machines: Array<{ id: string; workspaces?: Array<{ id: string }> }>;
+      };
+      expect(result.machines.find((machine) => machine.id === 'local')?.workspaces).toEqual([
+        expect.objectContaining({ id: 'ok', title: 'Keeps' }),
+      ]);
+    });
+  });
+
   it('coalesces simultaneous update requests for one device', async () => {
     let finish: (value: unknown) => void = () => {};
     const current = new Promise((resolve) => {
