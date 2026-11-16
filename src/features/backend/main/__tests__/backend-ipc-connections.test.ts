@@ -1703,50 +1703,32 @@ describe('connections:* IPC handlers', () => {
       return { local, remote, handler: handler! };
     }
 
-    it('asks every connected backend for workspace.list and maps the rows', async () => {
+    it('asks every connected backend for workspace.list and passes the rows through unchanged', async () => {
       const { local, remote, handler } = await bootWithLocalAndRemote();
+      const localRow = {
+        id: 'w1',
+        title: 'Fix login',
+        branch: 'fix-login',
+        status: 'active',
+        activity: 'agent_running',
+        displayStatus: 'in_progress',
+        lastContentActivity: '2026-11-11T10:00:00Z',
+        pullRequests: [{ number: 12 }],
+      };
+      const remoteRow = { id: 'w2', name: 'Named only', createdAt: '2026-01-01T00:00:00Z' };
       local.request.mockImplementation(async (method: string) =>
-        method === 'workspace.list'
-          ? {
-              workspaces: [
-                {
-                  id: 'w1',
-                  title: 'Fix login',
-                  branch: 'fix-login',
-                  status: 'active',
-                  activity: 'agent_running',
-                  lastContentActivity: '2026-11-11T10:00:00Z',
-                },
-              ],
-            }
-          : {},
+        method === 'workspace.list' ? { workspaces: [localRow] } : {},
       );
       remote.request.mockImplementation(async (method: string) =>
-        method === 'workspace.list'
-          ? { workspaces: [{ id: 'w2', name: 'Named only', createdAt: '2026-01-01T00:00:00Z' }] }
-          : {},
+        method === 'workspace.list' ? { workspaces: [remoteRow] } : {},
       );
 
       const result = (await handler({}, undefined)) as {
         machines: Array<{ id: string; ok: boolean; workspaces?: Array<Record<string, unknown>> }>;
       };
       const byId = new Map(result.machines.map((machine) => [machine.id, machine]));
-      expect(byId.get('local')).toMatchObject({
-        ok: true,
-        workspaces: [
-          {
-            id: 'w1',
-            title: 'Fix login',
-            branch: 'fix-login',
-            activity: 'agent_running',
-            lastActivityAt: '2026-11-11T10:00:00Z',
-          },
-        ],
-      });
-      expect(byId.get('remote-1')).toMatchObject({
-        ok: true,
-        workspaces: [{ id: 'w2', title: 'Named only', lastActivityAt: '2026-01-01T00:00:00Z' }],
-      });
+      expect(byId.get('local')).toEqual({ id: 'local', ok: true, workspaces: [localRow] });
+      expect(byId.get('remote-1')).toEqual({ id: 'remote-1', ok: true, workspaces: [remoteRow] });
       expect(remote.request).toHaveBeenCalledWith('workspace.list', undefined, {
         timeoutMs: expect.any(Number),
       });
@@ -1795,7 +1777,7 @@ describe('connections:* IPC handlers', () => {
         machines: Array<{ id: string; workspaces?: Array<{ id: string }> }>;
       };
       expect(result.machines.find((machine) => machine.id === 'local')?.workspaces).toEqual([
-        expect.objectContaining({ id: 'ok', title: 'Keeps' }),
+        { id: 'ok', title: 'Keeps' },
       ]);
     });
   });

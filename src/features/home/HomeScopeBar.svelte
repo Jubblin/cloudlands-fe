@@ -1,14 +1,17 @@
+<script lang="ts" module>
+  export type HomeScope = 'machine' | 'all';
+</script>
+
 <script lang="ts">
   /**
    * HomeScopeBar — the Workspaces controls row with a This machine / All
-   * machines switch. The per-machine controls (search, filters, view) only
-   * apply to this machine's list, so they render only in that scope.
+   * machines switch. Each scope supplies its own controls (search, filters,
+   * view), which sit beside the switch.
    */
   import type { Snippet } from 'svelte';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import { m } from '$shared/paraglide/messages.js';
 
-  export type HomeScope = 'machine' | 'all';
   let { scope = $bindable('machine'), children }: { scope?: HomeScope; children: Snippet } =
     $props();
 </script>
@@ -27,5 +30,5 @@
     <ToggleGroup.Item value="machine">{m.home_scope_thisMachine()}</ToggleGroup.Item>
     <ToggleGroup.Item value="all">{m.home_scope_allMachines()}</ToggleGroup.Item>
   </ToggleGroup.Root>
-  {#if scope === 'machine'}{@render children()}{/if}
+  {@render children()}
 </div>

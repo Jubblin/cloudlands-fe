@@ -1,43 +1,46 @@
 <script lang="ts">
   /**
-   * HomeAllMachines — read-only list of the workspaces on every connected
-   * machine, grouped per machine. Each machine is fetched independently by
-   * main (`connections:list-all-workspaces`), so an offline or slow machine
-   * shows its own error with a retry instead of hiding the others.
+   * HomeAllMachines — the workspaces of every connected machine in one list,
+   * with the same controls, rows, cards, grouping and filters as Home's own
+   * list. Each machine is fetched independently by main
+   * (`connections:list-all-workspaces`), so an offline or slow machine shows its
+   * own notice while the others still list. Selecting a workspace opens it in
+   * its machine's window; the actions that belong to this machine (pin,
+   * set aside, menus, labels) are left out.
    */
   import { onMount } from 'svelte';
-  import { isElectronPlatform } from '$lib/utils/platform-capabilities';
   import { Button } from '$lib/components/ui/button';
-  import { ListRow, ListView } from '$lib/components/patterns/collection';
-  import RelativeTime from '$lib/components/ui/RelativeTime.svelte';
   import { EmptyState, ErrorState } from '$lib/components/patterns/screen';
+  import { isElectronPlatform } from '$lib/utils/platform-capabilities';
   import { formatConnectionLabel } from '$lib/utils/connection-label';
-  import {
-    selectConnections,
-    selectCurrentConnectionId,
-  } from '$store/renderer/slices/connections/connections-selectors';
-  import {
-    LOCAL_CONNECTION_ID,
-    type MachineWorkspaceSummary,
-    type MachineWorkspacesEntry,
-  } from '$shared/types/connections';
-  import { store } from '$store/renderer/store';
-  import { listAllMachinesWorkspacesRequested } from './home-workspaces-slice';
+  import { selectConnections } from '$store/renderer/slices/connections/connections-selectors';
   import { openConnectionRequested } from '$store/renderer/slices/connections/connections-slice';
-  import { formatInteger } from '$lib/i18n/format';
+  import { LOCAL_CONNECTION_ID, type MachineWorkspacesEntry } from '$shared/types/connections';
+  import { store } from '$store/renderer/store';
   import { m } from '$shared/paraglide/messages.js';
+  import HomeScopeBar, { type HomeScope } from './HomeScopeBar.svelte';
+  import HomeWorkspaceBoard from './HomeWorkspaceBoard.svelte';
+  import HomeWorkspaceControls from './HomeWorkspaceControls.svelte';
+  import HomeWorkspaceList from './HomeWorkspaceList.svelte';
+  import HomeWorkspaceSettings from './HomeWorkspaceSettings.svelte';
+  import { combineMachineWorkspaces } from './home-all-machines';
+  import { buildHomeWorkspaceView, groupHomeRepositories } from './home-workspace-view';
+  import type { HomeFilter } from './home-model';
+  import { createHomeDoubleClickOpener } from './home-workspace-opening';
+  import { selectHomeWorkspaceView } from './home-workspaces-selectors';
   import {
-    activityTime,
-    buildMachineSections,
-    statusText,
-    type MachineSection,
-  } from './home-all-machines';
+    listAllMachinesWorkspacesRequested,
+    updateHomeWorkspaceView,
+  } from './home-workspaces-slice';
 
   /** Only the desktop app's main process can reach other machines. */
-  let { desktop = isElectronPlatform() }: { desktop?: boolean } = $props();
+  let {
+    desktop = isElectronPlatform(),
+    scope = $bindable('all'),
+  }: { desktop?: boolean; scope?: HomeScope } = $props();
 
   const connections$ = selectConnections();
-  const currentId$ = selectCurrentConnectionId();
+  const view$ = selectHomeWorkspaceView();
 
   let entries = $state<MachineWorkspacesEntry[]>([]);
   let loading = $state(true);
@@ -45,6 +48,7 @@
   let requestSerial = 0;
   /** Machines whose last open attempt failed; cleared on the next attempt. */
   let openErrors = $state<Record<string, boolean>>({});
+  let now = $state(Date.now());
 
   async function load() {
     const serial = ++requestSerial;
@@ -62,138 +66,181 @@
     }
   }
 
-  /** Open (or focus) the machine's own window and show the workspace there. */
-  async function openWorkspace(section: MachineSection, workspace: MachineWorkspaceSummary) {
-    openErrors = { ...openErrors, [section.id]: false };
-    try {
-      const result = await store.dispatch(openConnectionRequested(section.id, workspace.id));
-      if (result.status !== 'opened') openErrors = { ...openErrors, [section.id]: true };
-    } catch {
-      openErrors = { ...openErrors, [section.id]: true };
-    }
-  }
-
   onMount(() => {
     if (desktop) void load();
+    // The date range is relative to now.
+    const timer = setInterval(() => (now = Date.now()), 60_000);
     return () => {
+      clearInterval(timer);
       requestSerial++;
     };
   });
 
-  const sections = $derived(
-    buildMachineSections($connections$, entries, $currentId$, (connection) =>
+  const combined = $derived(
+    combineMachineWorkspaces($connections$, entries, (connection) =>
       connection.isLocal || connection.id === LOCAL_CONNECTION_ID
         ? m.layout_daemonStatus_localConnection_label()
         : formatConnectionLabel(connection),
     ),
   );
+  const model = $derived(
+    buildHomeWorkspaceView({
+      workspaces: combined.workspaces,
+      repositoryGroups: groupHomeRepositories(combined.workspaces, [], false),
+      view: $view$,
+      now,
+    }),
+  );
+  const machineLabel = (workspace: { id: string }) => combined.refs.get(workspace.id)?.machineLabel;
+  const labelOf = (id: string) => $connections$.find((connection) => connection.id === id);
 
-  function failureText(reason: NonNullable<(typeof sections)[number]['failure']>) {
-    if (reason === 'not-connected') return m.home_allMachines_notConnected();
-    if (reason === 'timeout') return m.home_allMachines_timeout();
-    return m.home_allMachines_failed();
+  function updateView(changes: Parameters<typeof updateHomeWorkspaceView>[0]) {
+    store.dispatch(updateHomeWorkspaceView(changes));
   }
+
+  /** Open (or focus) the machine's own window and show the workspace there. */
+  async function openWorkspace(key: string | null) {
+    const ref = key ? combined.refs.get(key) : undefined;
+    if (!ref) return;
+    openErrors = { ...openErrors, [ref.machineId]: false };
+    try {
+      const result = await store.dispatch(openConnectionRequested(ref.machineId, ref.workspaceId));
+      if (result.status !== 'opened') openErrors = { ...openErrors, [ref.machineId]: true };
+    } catch {
+      openErrors = { ...openErrors, [ref.machineId]: true };
+    }
+  }
+
+  // Selecting opens straight away: there is no preview pane for another machine.
+  const doubleClick = createHomeDoubleClickOpener(() => {});
+
+  function unavailableText(machine: (typeof combined.unavailable)[number]) {
+    if (machine.reason === 'not-connected')
+      return m.home_allMachines_notConnected({ machine: machine.label });
+    if (machine.reason === 'timeout') return m.home_allMachines_timeout({ machine: machine.label });
+    return m.home_allMachines_failed({ machine: machine.label });
+  }
+  const openFailed = $derived(Object.entries(openErrors).filter(([, hasError]) => hasError));
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
   {#if !desktop}
+    <HomeScopeBar bind:scope children={noControls} />
     <EmptyState class="flex-1" emphasis="prominent">
       {#snippet title()}<h2>{m.home_allMachines_desktopOnly_title()}</h2>{/snippet}
       {#snippet description()}<p>{m.home_allMachines_desktopOnly_description()}</p>{/snippet}
     </EmptyState>
   {:else}
-    <div class="flex shrink-0 items-center justify-between gap-3 px-6 py-2">
-      <p class="type-caption text-muted-foreground">{m.home_allMachines_caption()}</p>
-      <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}>
-        {loading ? m.home_allMachines_refreshing() : m.home_allMachines_refresh()}
-      </Button>
-    </div>
+    <HomeScopeBar bind:scope children={controls} />
     {#if failed}
       <ErrorState retryLabel={m.home_retry()} onRetry={() => void load()}>
         {#snippet message()}{m.home_allMachines_loadFailed()}{/snippet}
       </ErrorState>
-    {:else if sections.length === 0}
-      <EmptyState class="flex-1" emphasis="prominent">
-        {#snippet title()}<h2>{m.home_allMachines_empty()}</h2>{/snippet}
-      </EmptyState>
     {:else}
-      <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-6" aria-busy={loading}>
-        {#each sections as section (section.id)}
-          <section class="mt-4 first:mt-0" aria-labelledby={`all-machines-${section.id}`}>
-            <h2
-              id={`all-machines-${section.id}`}
-              class="type-body flex items-center gap-2 border-b border-border pb-2 font-medium"
-            >
-              <span class="truncate">{section.label}</span>
-              {#if section.isCurrent}
-                <span
-                  class="type-caption rounded-full border border-border px-2 text-muted-foreground"
-                  >{m.home_allMachines_thisWindow()}</span
-                >
-              {/if}
-              {#if section.workspaces}
-                <span class="type-caption ml-auto text-muted-foreground"
-                  >{formatInteger(section.workspaces.length)}</span
-                >
-              {/if}
-            </h2>
-            {#if section.failure}
-              <div class="flex items-center justify-between gap-3 py-3" role="status">
-                <p class="type-caption text-muted-foreground">{failureText(section.failure)}</p>
-                <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}
-                  >{m.home_retry()}</Button
-                >
-              </div>
-            {:else if section.workspaces && section.workspaces.length === 0}
-              <p class="type-caption py-3 text-muted-foreground">
-                {m.home_allMachines_noWorkspaces()}
-              </p>
-            {:else if section.workspaces}
-              <ListView
-                items={section.workspaces}
-                getKey={(workspace) => workspace.id}
-                getText={(workspace) => workspace.title}
-                ariaLabel={section.label}
-                virtualize={false}
-                selectable="single"
-                selectedKeys={[]}
-                onActivate={(workspace) => void openWorkspace(section, workspace)}
+      {#if combined.unavailable.length > 0 || openFailed.length > 0}
+        <div
+          class="shrink-0 px-6 pb-2"
+          role="group"
+          aria-label={m.home_allMachines_notices_label()}
+        >
+          {#each combined.unavailable as machine (machine.id)}
+            <div class="flex items-center justify-between gap-3 py-1" role="status">
+              <span class="type-caption text-muted-foreground">{unavailableText(machine)}</span>
+              <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}
+                >{m.home_retry()}</Button
               >
-                {#snippet row({ item: workspace })}
-                  <ListRow>
-                    {#snippet title()}{workspace.title}{/snippet}
-                    {#snippet description()}
-                      <span class="block truncate"
-                        >{[workspace.repositoryName, workspace.branch]
-                          .filter(Boolean)
-                          .join(' · ')}</span
-                      >
-                    {/snippet}
-                    {#snippet trailing()}
-                      <span>
-                        {workspace.activity === 'agent_running'
-                          ? m.home_allMachines_agentRunning()
-                          : statusText(workspace.displayStatus ?? workspace.status)}
-                      </span>
-                      <span class="w-16 text-right">
-                        {#if activityTime(workspace) > 0}<RelativeTime
-                            date={activityTime(workspace)}
-                            compact
-                          />{:else}<span aria-hidden="true">—</span>{/if}
-                      </span>
-                    {/snippet}
-                  </ListRow>
-                {/snippet}
-              </ListView>
-              {#if openErrors[section.id]}
-                <p class="type-caption py-2 text-danger" role="alert">
-                  {m.home_allMachines_openFailed({ machine: section.label })}
-                </p>
-              {/if}
+            </div>
+          {/each}
+          {#each openFailed as [machineId] (machineId)}
+            <p class="py-1 type-caption text-danger" role="alert">
+              {m.home_allMachines_openFailed({
+                machine: labelOf(machineId)?.label ?? machineId,
+              })}
+            </p>
+          {/each}
+        </div>
+      {/if}
+      {#if $connections$.length === 0}
+        <EmptyState class="flex-1" emphasis="prominent">
+          {#snippet title()}<h2>{m.home_allMachines_empty()}</h2>{/snippet}
+        </EmptyState>
+      {:else if model.filtered.length === 0}
+        <EmptyState class="flex-1" emphasis="prominent">
+          {#snippet title()}<h2>
+              {combined.workspaces.length === 0
+                ? m.home_allMachines_noWorkspaces()
+                : m.home_no_matches()}
+            </h2>{/snippet}
+          {#snippet description()}
+            {#if combined.workspaces.length > 0}<p>{m.home_no_matches_description()}</p>{/if}
+          {/snippet}
+          {#snippet actions()}
+            {#if combined.workspaces.length > 0}
+              <Button
+                variant="outline"
+                onclick={() => updateView({ query: '', filter: 'all', updatedWithin: 'all' })}
+                >{m.home_clear_filters()}</Button
+              >
             {/if}
-          </section>
-        {/each}
-      </div>
+          {/snippet}
+        </EmptyState>
+      {:else if $view$.view === 'board'}
+        <HomeWorkspaceBoard
+          workspaces={model.filtered}
+          groups={model.boardGroups}
+          selectedIds={[]}
+          onselect={(key) => void openWorkspace(key)}
+          ontoggleselect={() => {}}
+          onrangeselect={() => {}}
+          onopen={(key) => void openWorkspace(key)}
+          {doubleClick}
+          archived={$view$.filter === 'archived'}
+          {machineLabel}
+        />
+      {:else}
+        <HomeWorkspaceList
+          workspaces={model.filtered}
+          groups={model.listGroups}
+          aside={[]}
+          asideExpanded={false}
+          pinnedIds={[]}
+          selectedIds={[]}
+          showRepository={true}
+          showRepositoryOwner={true}
+          menu={() => []}
+          onopen={() => {}}
+          onmenu={() => {}}
+          onselect={(key) => void openWorkspace(key)}
+          ongroupexpanded={(group, expanded) =>
+            updateView({ expandedGroups: { ...$view$.expandedGroups, [group]: expanded } })}
+          onasideexpanded={() => {}}
+          ontoggleaside={() => {}}
+          readonly
+          {machineLabel}
+        />
+      {/if}
     {/if}
   {/if}
 </div>
+
+{#snippet noControls()}{/snippet}
+
+{#snippet controls()}
+  <HomeWorkspaceControls
+    query={$view$.query}
+    filter={$view$.filter}
+    view={$view$.view}
+    filters={model.filters}
+    onquery={(query) => updateView({ query })}
+    onfilter={(filter: HomeFilter) => updateView({ filter })}
+    onview={(view) => updateView({ view })}
+    settings={workspaceSettings}
+  />
+  <Button variant="outline" size="sm" disabled={loading} onclick={() => void load()}>
+    {loading ? m.home_allMachines_refreshing() : m.home_allMachines_refresh()}
+  </Button>
+{/snippet}
+
+{#snippet workspaceSettings()}
+  <HomeWorkspaceSettings view={$view$} onchange={updateView} />
+{/snippet}

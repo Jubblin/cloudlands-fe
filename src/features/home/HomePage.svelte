@@ -16,7 +16,7 @@
     selectPinnedWorkspaceIds,
     selectWorkspaceLabelsInUse,
   } from '$store/renderer/slices/sidebar-nav/sidebar-nav-selectors';
-  import { buildHomeListGroups } from './home-workspace-labels';
+  import { buildHomeWorkspaceView, groupHomeRepositories } from './home-workspace-view';
   import {
     createHomeDoubleClickOpener,
     openHomeWorkspaceFromEvent,
@@ -38,11 +38,7 @@
   import HomeAssistantThreads from './HomeAssistantThreads.svelte';
   import HomeAssistantPanels from './HomeAssistantPanels.svelte';
   import GitHubAvatar from '$lib/components/ui/GitHubAvatar.svelte';
-  import {
-    buildRepoPathLookup,
-    groupWorkspacesByRepository,
-    type RepositoryGroup,
-  } from '$lib/components/workspace/utils/workspace-grouping';
+  import { type RepositoryGroup } from '$lib/components/workspace/utils/workspace-grouping';
   import {
     HOME_HIDDEN_REPOS_GROUP,
     hiddenHomeRepositories,
@@ -69,22 +65,11 @@
   import { selectPanelItem } from '$store/renderer/slices/sidebar-nav/sidebar-nav-selectors';
   import { store } from '$store/renderer/store';
   import { WorkspaceStatusEnum, type Workspace } from '$shared/types';
-  import { compareHomeActivityDesc, getHomeActivityTime } from './home-activity';
   import { formatInteger } from '$lib/i18n/format';
   import { m } from '$shared/paraglide/messages.js';
   import Fa from 'svelte-fa';
+  import { faFolder, faPlus, faChevronRight } from '@fortawesome/free-solid-svg-icons';
   import {
-    faLayerGroup,
-    faFolder,
-    faCircleExclamation,
-    faPlay,
-    faHourglass,
-    faPlus,
-    faChevronRight,
-  } from '@fortawesome/free-solid-svg-icons';
-  import {
-    getHomeTriageGroup,
-    homeTriageGroupLabel,
     matchesHomeFilter,
     needsAttention,
     type HomeFilter,
@@ -95,7 +80,6 @@
   import HomeWorkspaceBoard from './HomeWorkspaceBoard.svelte';
   import HomeWorkspaceList from './HomeWorkspaceList.svelte';
   import HomeHiddenRepositories from './HomeHiddenRepositories.svelte';
-  import { groupHomeWorkspacesByStatus } from './home-workspace-status-groups';
   import GitHubIcon from '$lib/components/icons/GitHubIcon.svelte';
   import LinearIcon from '$lib/components/icons/LinearIcon.svelte';
   import ResizablePanel from '$lib/components/layout/ResizablePanel.svelte';
@@ -297,16 +281,7 @@
     ),
   );
   const repositoryGroups = $derived(
-    groupWorkspacesByRepository({
-      workspaces,
-      knownRepos: $collaborator$ ? [] : $knownRepos$,
-      repoPathLookup: buildRepoPathLookup(workspaces, $collaborator$ ? [] : $knownRepos$),
-      includeKnownRepos: !$collaborator$,
-    }).sort(
-      (a, b) =>
-        Math.max(0, ...b.workspaces.map(getHomeActivityTime)) -
-          Math.max(0, ...a.workspaces.map(getHomeActivityTime)) || a.label.localeCompare(b.label),
-    ),
+    groupHomeRepositories(workspaces, $collaborator$ ? [] : $knownRepos$, !$collaborator$),
   );
   const selectedRepository = $derived(repositoryGroups.find((repo) => repo.key === repoKey));
   // Hidden repositories leave the sidebar only; their workspaces stay in All repos.
@@ -369,15 +344,6 @@
     }, 60_000);
     return () => clearInterval(timer);
   });
-  const dateScopedWorkspaces = $derived(
-    scopedWorkspaces.filter((workspace) => {
-      const range = $view$.updatedWithin ?? 'all';
-      if (range === 'all') return true;
-      const days = range === 'day' ? 1 : range === 'week' ? 7 : 30;
-      const time = getHomeActivityTime(workspace);
-      return time > 0 && time <= dateFilterNow && time >= dateFilterNow - days * 86_400_000;
-    }),
-  );
   const repositories: HomeRepository[] = $derived(
     (selectedRepository ? [selectedRepository] : (selectedOrg?.items ?? repositoryGroups)).map(
       (repo) => ({
@@ -388,57 +354,24 @@
       }),
     ),
   );
-  const filters = $derived(
-    (
-      [
-        { id: 'all', label: m.home_integrations_all(), icon: faLayerGroup },
-        { id: 'attention', label: m.home_filter_attention(), icon: faCircleExclamation },
-        { id: 'running', label: m.home_filter_running(), icon: faPlay },
-        { id: 'waiting', label: m.home_filter_waiting(), icon: faHourglass },
-      ] as const satisfies readonly { id: HomeFilter; label: string; icon: unknown }[]
-    ).map((item) => ({
-      ...item,
-      count: dateScopedWorkspaces.filter(
-        (workspace) => matchesHomeFilter(workspace, item.id) && !asideSet.has(workspace.id),
-      ).length,
-    })),
+  // Which workspaces Home shows, in what order and grouping: shared with All machines.
+  const homeView = $derived(
+    buildHomeWorkspaceView({
+      workspaces: scopedWorkspaces,
+      repositoryGroups,
+      view: $view$,
+      now: dateFilterNow,
+      pinnedIds: $pinnedIds$,
+      asideIds: asideSet,
+      selectedId,
+      labels: $labelsInUse$,
+      labelsSupported: $labelsSupported$,
+      pinnedLabel: m.layout_activeCard_pinned_header(),
+    }),
   );
-  const matchedWorkspaces = $derived(
-    dateScopedWorkspaces
-      .filter(
-        (workspace) =>
-          matchesHomeFilter(workspace, filter) &&
-          (!query.trim() ||
-            [
-              workspace.title,
-              workspace.repositoryName,
-              workspace.repositoryOwner,
-              workspace.branch,
-              workspace.statusMessage,
-            ].some((value) =>
-              value?.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-            )),
-      )
-      .sort(
-        (a, b) =>
-          Number($pinnedIds$.includes(b.id)) - Number($pinnedIds$.includes(a.id)) ||
-          Number(needsAttention(b)) - Number(needsAttention(a)) ||
-          compareHomeActivityDesc(a, b),
-      ),
-  );
-  // Archived is its own view; set-aside work has a separate collection.
-  const filteredWorkspaces = $derived(
-    filter === 'archived'
-      ? matchedWorkspaces
-      : matchedWorkspaces.filter((workspace) => !asideSet.has(workspace.id)),
-  );
-  const asideWorkspaces = $derived(
-    filter === 'archived'
-      ? []
-      : matchedWorkspaces
-          .filter((workspace) => asideSet.has(workspace.id))
-          .sort(compareHomeActivityDesc),
-  );
+  const filters = $derived(homeView.filters);
+  const filteredWorkspaces = $derived(homeView.filtered);
+  const asideWorkspaces = $derived(homeView.aside);
   const selectedWorkspace = $derived(
     filteredWorkspaces.find((workspace) => workspace.id === selectedId) ??
       asideWorkspaces.find((workspace) => workspace.id === selectedId),
@@ -463,7 +396,6 @@
     }
     updateView({ expandedGroups: { ...$view$.expandedGroups, [HOME_SET_ASIDE_GROUP]: expanded } });
   }
-  const triageOrder = ['needs-you', 'running', 'waiting', 'inactive'] as const;
   // Hiding a group that holds the selected workspace also closes the preview;
   // otherwise the selection would keep the group open and the button inert.
   function setGroupExpanded(group: string, expanded: boolean, items: Workspace[]) {
@@ -473,84 +405,8 @@
       ...(!expanded && holdsSelection ? { selectedId: null } : {}),
     });
   }
-  // Grouping is only meaningful on the unfiltered list; a status filter already
-  // names the group, and archived rows have no live triage state.
-  const triageGroups = $derived(
-    filter === 'all' && $view$.groupBy === 'status'
-      ? triageOrder.flatMap((id) => {
-          const items = filteredWorkspaces.filter((workspace) => {
-            const group = getHomeTriageGroup(workspace);
-            return (
-              (group === 'blocked'
-                ? 'needs-you'
-                : group === 'done' || group === 'idle'
-                  ? 'inactive'
-                  : group) === id
-            );
-          });
-          if (items.length === 0) return [];
-          const expanded =
-            $view$.expandedGroups[id] !== false ||
-            items.some((workspace) => workspace.id === selectedId);
-          return [{ id, label: homeTriageGroupLabel(id), items, expanded, collapsible: true }];
-        })
-      : [],
-  );
-  const repositorySections = $derived(
-    repositoryGroups.flatMap((repo) => {
-      const items = filteredWorkspaces.filter((workspace) =>
-        repo.workspaces.some((candidate) => candidate.id === workspace.id),
-      );
-      return items.length
-        ? [
-            {
-              id: repo.key,
-              label: repo.label,
-              items,
-              expanded:
-                $view$.expandedGroups[repo.key] !== false ||
-                items.some((workspace) => workspace.id === selectedId),
-              collapsible: true,
-            },
-          ]
-        : [];
-    }),
-  );
-  const statusGroups = $derived(
-    groupHomeWorkspacesByStatus(filteredWorkspaces).map((group) => ({
-      ...group,
-      expanded:
-        $view$.expandedGroups[group.id] !== false ||
-        group.items.some((workspace) => workspace.id === selectedId),
-      collapsible: true,
-    })),
-  );
-  const listGroups = $derived(
-    buildHomeListGroups({
-      groupBy: $view$.groupBy,
-      filter,
-      baseGroups:
-        $view$.groupBy === 'repository'
-          ? repositorySections
-          : $view$.groupBy === 'workspace-status'
-            ? statusGroups
-            : triageGroups,
-      workspaces: filteredWorkspaces,
-      pinnedIds: $pinnedIds$,
-      labels: $labelsInUse$,
-      labelsSupported: $labelsSupported$,
-      pinnedLabel: m.layout_activeCard_pinned_header(),
-      expandedGroups: $view$.expandedGroups,
-      selectedId,
-    }),
-  );
-  const boardGroups = $derived(
-    $view$.groupBy === 'repository'
-      ? repositorySections
-      : $view$.groupBy === 'none'
-        ? [{ id: 'all', label: m.home_filter_all(), items: filteredWorkspaces }]
-        : undefined,
-  );
+  const listGroups = $derived(homeView.listGroups);
+  const boardGroups = $derived(homeView.boardGroups);
   const integrationWorkspaceId = $derived($collaborator$ ? scopedWorkspaces[0]?.id : undefined);
   const selectedRepositoryGithubUrl = $derived(
     selectedRepository?.owner && selectedRepository.name
@@ -1039,84 +895,88 @@
                             settings={workspaceSettings}
                           />
                         {/snippet}
-                        <HomeScopeBar bind:scope={workspaceScope} children={workspaceControls} />
-                        {#if workspaceScope === 'all'}<HomeAllMachines />
-                        {:else if $workspaceError$}<ErrorState
-                            retryLabel={m.home_retry()}
-                            onRetry={() => store.dispatch(loadWorkspacesRequested())}
-                            >{#snippet message()}{$workspaceError$}{/snippet}</ErrorState
-                          >
-                        {:else if !$hasLoaded$}<HomeLoading
-                            view={$view$.view}
-                            grouped={$view$.groupBy !== 'none'}
-                          />
-                        {:else if filteredWorkspaces.length === 0 && asideWorkspaces.length === 0}
-                          <EmptyState class="flex-1" emphasis="prominent">
-                            {#snippet title()}<h2>
-                                {workspaces.length === 0
-                                  ? m.home_empty_title()
-                                  : m.home_no_matches()}
-                              </h2>{/snippet}
-                            {#snippet description()}<p>
-                                {workspaces.length === 0
-                                  ? m.home_empty_description()
-                                  : m.home_no_matches_description()}
-                              </p>{/snippet}
-                            {#snippet actions()}
-                              {#if workspaces.length === 0 && !$collaborator$}<Button
-                                  variant="primary"
-                                  onclick={createWorkspace}>{m.home_new_workspace()}</Button
-                                >
-                              {:else if workspaces.length > 0}<Button
-                                  variant="outline"
-                                  onclick={() => {
-                                    updateView({
-                                      query: '',
-                                      filter: 'all',
-                                      repoKey: null,
-                                      updatedWithin: 'all',
-                                    });
-                                  }}>{m.home_clear_filters()}</Button
-                                >{/if}
-                            {/snippet}
-                          </EmptyState>
-                        {:else if $view$.view === 'board'}
-                          <HomeWorkspaceBoard
-                            workspaces={filteredWorkspaces}
-                            pinnedIds={$pinnedIds$}
-                            groups={boardGroups}
-                            showRepository={!selectedRepository}
-                            showRepositoryOwner={!selectedOrg}
-                            selectedIds={selection.selectedIds}
-                            onselect={selection.pickCard}
-                            ontoggleselect={selection.toggle}
-                            onrangeselect={selection.range}
-                            onopen={openWorkspace}
-                            {doubleClick}
-                            oncontextmenu={showWorkspaceMenu}
-                            archived={filter === 'archived'}
-                            aside={asideWorkspaces}
-                            dragScope={$persistenceScope$}
-                            ontoggleaside={toggleAside}
+                        {#if workspaceScope === 'all'}<HomeAllMachines
+                            bind:scope={workspaceScope}
                           />
                         {:else}
-                          <HomeWorkspaceList
-                            workspaces={filteredWorkspaces}
-                            groups={listGroups}
-                            aside={asideWorkspaces}
-                            {asideExpanded}
-                            pinnedIds={$pinnedIds$}
-                            selectedIds={selection.selectedIds}
-                            showRepository={!selectedRepository}
-                            showRepositoryOwner={!selectedOrg}
-                            menu={workspaceMenu}
-                            onopen={activateListRow}
-                            onmenu={showListMenu}
-                            onselect={selection.pickRow}
-                            ongroupexpanded={setGroupExpanded}
-                            onasideexpanded={setAsideExpanded}
-                            ontoggleaside={toggleAside}
-                          />
+                          <HomeScopeBar bind:scope={workspaceScope} children={workspaceControls} />
+                          {#if $workspaceError$}<ErrorState
+                              retryLabel={m.home_retry()}
+                              onRetry={() => store.dispatch(loadWorkspacesRequested())}
+                              >{#snippet message()}{$workspaceError$}{/snippet}</ErrorState
+                            >
+                          {:else if !$hasLoaded$}<HomeLoading
+                              view={$view$.view}
+                              grouped={$view$.groupBy !== 'none'}
+                            />
+                          {:else if filteredWorkspaces.length === 0 && asideWorkspaces.length === 0}
+                            <EmptyState class="flex-1" emphasis="prominent">
+                              {#snippet title()}<h2>
+                                  {workspaces.length === 0
+                                    ? m.home_empty_title()
+                                    : m.home_no_matches()}
+                                </h2>{/snippet}
+                              {#snippet description()}<p>
+                                  {workspaces.length === 0
+                                    ? m.home_empty_description()
+                                    : m.home_no_matches_description()}
+                                </p>{/snippet}
+                              {#snippet actions()}
+                                {#if workspaces.length === 0 && !$collaborator$}<Button
+                                    variant="primary"
+                                    onclick={createWorkspace}>{m.home_new_workspace()}</Button
+                                  >
+                                {:else if workspaces.length > 0}<Button
+                                    variant="outline"
+                                    onclick={() => {
+                                      updateView({
+                                        query: '',
+                                        filter: 'all',
+                                        repoKey: null,
+                                        updatedWithin: 'all',
+                                      });
+                                    }}>{m.home_clear_filters()}</Button
+                                  >{/if}
+                              {/snippet}
+                            </EmptyState>
+                          {:else if $view$.view === 'board'}
+                            <HomeWorkspaceBoard
+                              workspaces={filteredWorkspaces}
+                              pinnedIds={$pinnedIds$}
+                              groups={boardGroups}
+                              showRepository={!selectedRepository}
+                              showRepositoryOwner={!selectedOrg}
+                              selectedIds={selection.selectedIds}
+                              onselect={selection.pickCard}
+                              ontoggleselect={selection.toggle}
+                              onrangeselect={selection.range}
+                              onopen={openWorkspace}
+                              {doubleClick}
+                              oncontextmenu={showWorkspaceMenu}
+                              archived={filter === 'archived'}
+                              aside={asideWorkspaces}
+                              dragScope={$persistenceScope$}
+                              ontoggleaside={toggleAside}
+                            />
+                          {:else}
+                            <HomeWorkspaceList
+                              workspaces={filteredWorkspaces}
+                              groups={listGroups}
+                              aside={asideWorkspaces}
+                              {asideExpanded}
+                              pinnedIds={$pinnedIds$}
+                              selectedIds={selection.selectedIds}
+                              showRepository={!selectedRepository}
+                              showRepositoryOwner={!selectedOrg}
+                              menu={workspaceMenu}
+                              onopen={activateListRow}
+                              onmenu={showListMenu}
+                              onselect={selection.pickRow}
+                              ongroupexpanded={setGroupExpanded}
+                              onasideexpanded={setAsideExpanded}
+                              ontoggleaside={toggleAside}
+                            />
+                          {/if}
                         {/if}
                         {#if selection.active}
                           <HomeSelectionBar

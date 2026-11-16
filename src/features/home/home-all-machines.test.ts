@@ -1,47 +1,65 @@
 import { describe, expect, it } from 'vitest';
-import type { ConnectionRecord, MachineWorkspacesEntry } from '$shared/types/connections';
+import { WorkspaceStatus } from '$shared/types';
+import type {
+  ConnectionRecord,
+  MachineWorkspaceRow,
+  MachineWorkspacesEntry,
+} from '$shared/types/connections';
 import {
-  buildMachineSections,
+  combineMachineWorkspaces,
+  machineWorkspaceKey,
   parseListAllWorkspacesResult,
-  statusText,
 } from './home-all-machines';
 
+const NOW = Date.parse('2026-11-11T12:00:00Z');
+const ago = (hours: number) => new Date(NOW - hours * 3_600_000).toISOString();
+
 const conn = (id: string, isLocal = false) => ({ id, isLocal }) as unknown as ConnectionRecord;
-const ws = (id: string, lastActivityAt: string | null) => ({
+const row = (id: string, extra: Record<string, unknown> = {}): MachineWorkspaceRow => ({
   id,
   title: id,
-  branch: 'b',
+  branch: `branch-${id}`,
   status: 'active',
-  lastActivityAt,
+  createdAt: ago(1),
+  ...extra,
 });
 
-describe('buildMachineSections', () => {
-  const connections = [conn('local', true), conn('zeta'), conn('alpha')];
+describe('combineMachineWorkspaces', () => {
+  const connections = [conn('local', true), conn('studio'), conn('build'), conn('laptop')];
   const entries: MachineWorkspacesEntry[] = [
-    {
-      id: 'local',
-      ok: true,
-      workspaces: [ws('old', '2026-01-01T00:00:00Z'), ws('new', '2026-02-01T00:00:00Z')],
-    },
-    { id: 'zeta', ok: false, reason: 'timeout' },
+    { id: 'local', ok: true, workspaces: [row('main-one', { title: 'Local main' })] },
+    { id: 'studio', ok: true, workspaces: [row('main-one', { title: 'Studio main' })] },
+    { id: 'build', ok: false, reason: 'timeout' },
   ];
-  const sections = buildMachineSections(connections, entries, 'zeta', (c) => c.id);
+  const combined = combineMachineWorkspaces(connections, entries, (c) => c.id.toUpperCase());
 
-  it('puts the current window first, then local, then alphabetical', () => {
-    expect(sections.map((s) => s.id)).toEqual(['zeta', 'local', 'alpha']);
+  it('keeps two machines that reuse a workspace id apart', () => {
+    expect(combined.workspaces.map((w) => [w.id, w.title])).toEqual([
+      [machineWorkspaceKey('local', 'main-one'), 'Local main'],
+      [machineWorkspaceKey('studio', 'main-one'), 'Studio main'],
+    ]);
+    expect(new Set(combined.workspaces.map((w) => w.id)).size).toBe(2);
   });
-  it('sorts workspaces newest first', () => {
-    expect(sections[1].workspaces?.map((w) => w.id)).toEqual(['new', 'old']);
-  });
-  it('keeps failed and unreported machines visible with a reason', () => {
-    expect(sections[0]).toMatchObject({ workspaces: null, failure: 'timeout', isCurrent: true });
-    expect(sections[2]).toMatchObject({ workspaces: null, failure: 'not-connected' });
-  });
-});
 
-describe('statusText', () => {
-  it('humanises daemon tokens', () => {
-    expect(statusText('in_progress')).toBe('in progress');
+  it('remembers which machine and workspace each row stands for', () => {
+    expect(combined.refs.get(machineWorkspaceKey('studio', 'main-one'))).toEqual({
+      machineId: 'studio',
+      machineLabel: 'STUDIO',
+      workspaceId: 'main-one',
+    });
+  });
+
+  it('normalises rows like the connected machine does (status and defaults)', () => {
+    const [first] = combined.workspaces;
+    expect(first.status).toBe(WorkspaceStatus.Active);
+    expect(first.changesets).toEqual([]);
+  });
+
+  it('lists machines that did not answer, in connection order, with why', () => {
+    expect(combined.unavailable).toEqual([
+      { id: 'build', label: 'BUILD', reason: 'timeout' },
+      { id: 'laptop', label: 'LAPTOP', reason: 'not-connected' },
+    ]);
   });
 });
 

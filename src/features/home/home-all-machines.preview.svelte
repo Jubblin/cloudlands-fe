@@ -15,6 +15,7 @@
 </script>
 
 <script lang="ts">
+  import './home.css';
   import HomeAllMachines from './HomeAllMachines.svelte';
   let {
     scenario = 'mixed',
@@ -23,7 +24,7 @@
 </script>
 
 <div
-  class="flex h-[480px] w-full min-w-0 flex-col bg-background text-foreground"
+  class="workspace-list home-panel flex h-160 w-full min-w-0 flex-col overflow-hidden bg-background text-foreground"
   data-scenario={scenario}
 >
   <HomeAllMachines {desktop} />

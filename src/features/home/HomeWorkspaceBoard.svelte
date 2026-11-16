@@ -35,6 +35,7 @@
     aside = [],
     dragScope = null,
     ontoggleaside,
+    machineLabel,
   }: {
     workspaces: Workspace[];
     pinnedIds?: readonly string[];
@@ -54,6 +55,8 @@
     aside?: Workspace[];
     dragScope?: string | null;
     ontoggleaside?: (workspace: Workspace, focusMoved?: boolean, expectedScope?: string) => void;
+    /** Names the machine a card lives on, for boards that mix machines. */
+    machineLabel?: (workspace: Workspace) => string | undefined;
   } = $props();
   const asideIds = $derived(new Set(aside.map((workspace) => workspace.id)));
   const CARD_DRAG_TYPE = 'application/x-intent-home-workspace';
@@ -289,6 +292,12 @@
                   </span>{/snippet}</Tooltip.Trigger
               ><Tooltip.Content>{repositoryLabel}</Tooltip.Content></Tooltip.Root
             ></Tooltip.Provider
+          >
+        {/if}
+        {#if machineLabel?.(workspace)}
+          <span
+            class="shrink-0 rounded-full border border-border px-2 py-0.5 type-caption"
+            data-home-machine>{machineLabel(workspace)}</span
           >
         {/if}
         {#if workspace.pullRequests?.length || workspace.activePullRequest}

@@ -52,6 +52,8 @@
     ongroupexpanded,
     onasideexpanded,
     ontoggleaside,
+    readonly = false,
+    machineLabel,
   }: {
     /** Active rows in display order (set-aside rows excluded). */
     workspaces: Workspace[];
@@ -73,6 +75,10 @@
     ongroupexpanded: (group: string, expanded: boolean, items: Workspace[]) => void;
     onasideexpanded: (expanded: boolean) => void;
     ontoggleaside: (workspace: Workspace) => void;
+    /** Rows of a machine this window is not connected to: no set-aside action or row menu. */
+    readonly?: boolean;
+    /** Names the machine a row lives on, for lists that mix machines. */
+    machineLabel?: (workspace: Workspace) => string | undefined;
   } = $props();
 
   const asideIds = $derived(new Set(aside.map((workspace) => workspace.id)));
@@ -222,6 +228,12 @@
         {#if showRepository}
           <HomeWorkspaceRepositoryLabel workspace={item} showOwner={showRepositoryOwner} />
         {/if}
+        {#if machineLabel?.(item)}
+          <span
+            class="shrink-0 rounded-full border border-border px-2 py-0.5 type-caption"
+            data-home-machine>{machineLabel(item)}</span
+          >
+        {/if}
       </span>
     {/snippet}
     {#snippet trailing()}<span
@@ -248,14 +260,16 @@
           >
             <HomeActivityTime workspace={item} />
           </span>
-          {#if isLive(item)}
+          {#if isLive(item) && !readonly}
             {@render asideAction(item)}
           {/if}
         </span>
-        <SidebarOverflowMenu
-          items={menu(item)}
-          ariaLabel={m.workspace_sidebarHeader_actions_ariaLabel()}
-        />
+        {#if !readonly}
+          <SidebarOverflowMenu
+            items={menu(item)}
+            ariaLabel={m.workspace_sidebarHeader_actions_ariaLabel()}
+          />
+        {/if}
       </span>{/snippet}
   </ListRow>
 {/snippet}

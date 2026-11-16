@@ -4,13 +4,14 @@ import { installMockElectronBridge } from './ct-mock-electron-bridge';
 import { connectionsListReceived } from '$store/renderer/slices/connections/connections-slice';
 import { selectConnections } from '$store/renderer/slices/connections/connections-selectors';
 import { homeAllMachinesSaga } from '$features/home/home-all-machines-saga';
+import { resetHomeWorkspaceView } from '$features/home/home-workspaces-slice';
 import { openConnectionRequested } from '$store/renderer/slices/connections/connections-slice';
 import { put, takeEvery } from 'typed-redux-saga';
 import {
   CONNECTION_CHANNELS,
   type ConnectionRecord,
   type ListAllWorkspacesResult,
-  type MachineWorkspaceSummary,
+  type MachineWorkspaceRow,
 } from '$shared/types/connections';
 
 export type HomeAllMachinesScenario = 'mixed' | 'all-empty';
@@ -20,14 +21,16 @@ const ago = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 const row = (
   id: string,
   title: string,
-  extra: Partial<MachineWorkspaceSummary> = {},
-): MachineWorkspaceSummary => ({
+  extra: Record<string, unknown> = {},
+): MachineWorkspaceRow => ({
   id,
   title,
   branch: id,
   status: 'active',
   repositoryName: 'intent',
-  lastActivityAt: ago(30),
+  repositoryOwner: 'intent-hq',
+  createdAt: ago(60 * 24 * 3),
+  lastContentActivity: ago(30),
   ...extra,
 });
 
@@ -67,13 +70,16 @@ function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
         id: 'local',
         ok: true,
         workspaces: [
-          row('fix-login-bug', 'Fix login bug', {
+          row('swift-otter', 'Fix login bug', {
             activity: 'agent_running',
-            lastActivityAt: ago(2),
+            displayStatus: 'in_progress',
+            lastContentActivity: ago(2),
+            statusMessage: 'Reproducing the redirect loop',
           }),
-          row('dark-mode', 'Add dark mode support', {
-            displayStatus: 'in_review',
-            lastActivityAt: ago(95),
+          // The same workspace id as on the other machine: they must stay distinct rows.
+          row('amber-forest', 'Add dark mode support', {
+            displayStatus: 'pr_open',
+            lastContentActivity: ago(95),
           }),
         ],
       },
@@ -81,9 +87,16 @@ function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
         id: 'studio',
         ok: true,
         workspaces: [
-          row('release-notes', 'Draft release notes', {
+          row('amber-forest', 'Draft release notes', {
             repositoryName: 'cloudlands-fe',
-            lastActivityAt: ago(60 * 26),
+            displayStatus: 'needs_attention',
+            attention: 'review_required',
+            lastContentActivity: ago(60 * 26),
+          }),
+          row('quiet-harbor', 'Refactor sidebar', {
+            repositoryName: 'cloudlands-fe',
+            displayStatus: 'idle',
+            lastContentActivity: ago(60 * 24 * 2),
           }),
         ],
       },
@@ -95,6 +108,7 @@ function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
 
 export function setupHomeAllMachinesFixture(scenario: HomeAllMachinesScenario) {
   const before = store.state;
+  store.dispatch(resetHomeWorkspaceView());
   const previousConnections = selectConnections.select(before);
   const previousApi = window.electronAPI;
   installMockElectronBridge({});
@@ -115,6 +129,7 @@ export function setupHomeAllMachinesFixture(scenario: HomeAllMachinesScenario) {
   return () => {
     stop();
     stopOpen();
+    store.dispatch(resetHomeWorkspaceView());
     window.electronAPI = previousApi;
     registerMockIpcHandler(
       CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,

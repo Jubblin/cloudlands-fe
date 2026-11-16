@@ -191,7 +191,7 @@ import type {
   UpdateConnectionResult,
   UpdateBackendResult,
   ListAllWorkspacesResult,
-  MachineWorkspaceSummary,
+  MachineWorkspaceRow,
   MachineWorkspacesEntry,
 } from '../../../shared/types/connections';
 import { compareProtocolMajor } from './protocol-compat';
@@ -1705,29 +1705,13 @@ const backendUpdateRequests = new Map<string, Promise<UpdateBackendResult>>();
 
 const ALL_MACHINES_LIST_TIMEOUT_MS = 8_000;
 
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-function toMachineWorkspaceSummary(raw: unknown): MachineWorkspaceSummary | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const row = raw as Record<string, unknown>;
-  const id = optionalString(row.id);
-  if (!id) return null;
-  return {
-    id,
-    title: optionalString(row.title) ?? optionalString(row.name) ?? id,
-    branch: optionalString(row.branch) ?? '',
-    status: optionalString(row.status) ?? 'active',
-    displayStatus: optionalString(row.displayStatus),
-    activity: optionalString(row.activity),
-    repositoryName: optionalString(row.repositoryName),
-    lastActivityAt:
-      optionalString(row.lastContentActivity) ??
-      optionalString(row.lastActivity) ??
-      optionalString(row.createdAt) ??
-      null,
-  };
+function isWorkspaceRow(raw: unknown): raw is MachineWorkspaceRow {
+  return (
+    !!raw &&
+    typeof raw === 'object' &&
+    typeof (raw as { id?: unknown }).id === 'string' &&
+    (raw as { id: string }).id.length > 0
+  );
 }
 
 /** One machine's workspaces for the cross-machine view; never throws. */
@@ -1741,9 +1725,7 @@ async function listMachineWorkspaces(id: string): Promise<MachineWorkspacesEntry
       timeoutMs: ALL_MACHINES_LIST_TIMEOUT_MS,
     });
     const rows = Array.isArray(result?.workspaces) ? result.workspaces : [];
-    const workspaces = rows
-      .map(toMachineWorkspaceSummary)
-      .filter((row): row is MachineWorkspaceSummary => row !== null);
+    const workspaces = rows.filter(isWorkspaceRow);
     return { id, ok: true, workspaces };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -534,25 +534,16 @@ export type UpdateBackendResult =
   | { ok: true }
   | { ok: false; reason: 'not-connected' | 'unsupported' | 'failed'; message?: string };
 
-/** One workspace row in the cross-machine Home view (read-only summary). */
-export interface MachineWorkspaceSummary {
-  id: string;
-  title: string;
-  branch: string;
-  /** Lifecycle status as served by the daemon (e.g. `active`). */
-  status: string;
-  /** BE-owned display status when the daemon serves a known one. */
-  displayStatus?: string;
-  /** `agent_running` while an agent is working. */
-  activity?: string;
-  repositoryName?: string;
-  /** ISO timestamp used for ordering; `null` when the daemon omits it. */
-  lastActivityAt: string | null;
-}
+/**
+ * One `workspace.list` row exactly as the machine's daemon sent it. Main only
+ * checks that it is an object with an `id`; the renderer normalises it the
+ * same way it does for the machine this window is connected to.
+ */
+export type MachineWorkspaceRow = Record<string, unknown> & { id: string };
 
 /** Per-machine outcome of the cross-machine workspace listing. */
 export type MachineWorkspacesEntry =
-  | { id: string; ok: true; workspaces: MachineWorkspaceSummary[] }
+  | { id: string; ok: true; workspaces: MachineWorkspaceRow[] }
   | { id: string; ok: false; reason: 'not-connected' | 'timeout' | 'failed' };
 
 /** `connections:list-all-workspaces` result: one entry per live backend. */
