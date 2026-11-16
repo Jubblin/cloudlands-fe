@@ -8,7 +8,7 @@
    * its machine's window; the actions that belong to this machine (pin,
    * set aside, menus, labels) are left out.
    */
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { Button } from '$lib/components/ui/button';
   import { EmptyState, ErrorState } from '$lib/components/patterns/screen';
   import { isElectronPlatform } from '$lib/utils/platform-capabilities';
@@ -50,12 +50,18 @@
   let openErrors = $state<Record<string, boolean>>({});
   let now = $state(Date.now());
 
+  // Archived workspaces always come with the list; retired ones (archived, folder purged)
+  // only while the Archived chip is selected, as on This machine.
+  const wantsRetired = $derived($view$.filter === 'archived');
+
   async function load() {
     const serial = ++requestSerial;
     loading = true;
     failed = false;
     try {
-      const result = await store.dispatch(listAllMachinesWorkspacesRequested());
+      const result = await store.dispatch(
+        listAllMachinesWorkspacesRequested({ includeRetired: wantsRetired }),
+      );
       if (serial !== requestSerial) return;
       entries = result.machines;
     } catch {
@@ -66,8 +72,13 @@
     }
   }
 
+  // Loads on mount, and again when the Archived chip is turned on or off.
+  $effect(() => {
+    void wantsRetired;
+    if (desktop) untrack(() => void load());
+  });
+
   onMount(() => {
-    if (desktop) void load();
     // The date range is relative to now.
     const timer = setInterval(() => (now = Date.now()), 60_000);
     return () => {

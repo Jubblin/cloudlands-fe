@@ -546,6 +546,15 @@ export type MachineWorkspacesEntry =
   | { id: string; ok: true; workspaces: MachineWorkspaceRow[] }
   | { id: string; ok: false; reason: 'not-connected' | 'timeout' | 'failed' };
 
+/**
+ * `connections:list-all-workspaces` params. Archived workspaces are always
+ * included; retired ones (an archived workspace whose folder was purged) only
+ * when asked for, as for Home's own Archived chip.
+ */
+export interface ListAllWorkspacesParams {
+  includeRetired?: boolean;
+}
+
 /** `connections:list-all-workspaces` result: one entry per live backend. */
 export interface ListAllWorkspacesResult {
   machines: MachineWorkspacesEntry[];

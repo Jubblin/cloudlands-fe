@@ -108,6 +108,7 @@ const FORWARDED_DEVICE_CHANNELS = [
   CONNECTION_CHANNELS.PAIR_LINK_INSPECT,
   CONNECTION_CHANNELS.PAIR_LINK_COMMIT,
   CONNECTION_CHANNELS.PAIR_LINK_DISCARD,
+  CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,
 ] as const;
 
 for (const channel of FORWARDED_DEVICE_CHANNELS) {
@@ -121,6 +122,9 @@ for (const channel of FORWARDED_DEVICE_CHANNELS) {
       const { id } = arg as OpenConnectionParams;
       return { status: 'opened', id } satisfies OpenConnectionResult;
     }
+    // No live pooled clients to ask: every saved machine reads as not connected.
+    if (channel === CONNECTION_CHANNELS.LIST_ALL_WORKSPACES)
+      return { machines: [] } satisfies ListAllWorkspacesResult;
     // No main process to test a pair link or hold its credential: nothing is kept.
     if (channel === CONNECTION_CHANNELS.PAIR_LINK_DISCARD) return { ok: true };
     if (
@@ -141,13 +145,6 @@ registerMockIpcHandler(
     if (id === LOCAL_CONNECTION_ID) return { ok: false, reason: 'unsupported' };
     return { ok: false, reason: 'not-connected' };
   },
-);
-
-// Cross-machine workspace listing. The mock has no live pooled clients, so
-// the result is empty and every saved machine reads as not connected.
-registerMockIpcHandler(
-  CONNECTION_CHANNELS.LIST_ALL_WORKSPACES,
-  async (): Promise<ListAllWorkspacesResult> => ({ machines: [] }),
 );
 
 // iCloud-keychain sync (T4). The browser/mock environment has no macOS

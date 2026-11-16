@@ -1209,7 +1209,11 @@ export const ConnectionsUpdateBackendSchema = z.object({
   id: z.string().min(1, 'Connection ID is required'),
 });
 
-export const ConnectionsListAllWorkspacesSchema = EmptySchema;
+export const ConnectionsListAllWorkspacesSchema = z
+  .object({ includeRetired: z.boolean().optional() })
+  .strict()
+  .or(z.undefined())
+  .or(z.null());
 
 export const ConnectionsSyncGetStateSchema = EmptySchema;
 

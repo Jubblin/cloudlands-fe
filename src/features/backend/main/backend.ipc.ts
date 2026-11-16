@@ -190,6 +190,7 @@ import type {
   UnpublishSelfResult,
   UpdateConnectionResult,
   UpdateBackendResult,
+  ListAllWorkspacesParams,
   ListAllWorkspacesResult,
   MachineWorkspaceRow,
   MachineWorkspacesEntry,
@@ -1715,15 +1716,20 @@ function isWorkspaceRow(raw: unknown): raw is MachineWorkspaceRow {
 }
 
 /** One machine's workspaces for the cross-machine view; never throws. */
-async function listMachineWorkspaces(id: string): Promise<MachineWorkspacesEntry> {
+async function listMachineWorkspaces(
+  id: string,
+  params: ListAllWorkspacesParams,
+): Promise<MachineWorkspacesEntry> {
   const client = backendClients.get(id);
   if (!client || client.getStatus() !== 'connected') {
     return { id, ok: false, reason: 'not-connected' };
   }
   try {
-    const result = await client.request<{ workspaces?: unknown[] }>('workspace.list', undefined, {
-      timeoutMs: ALL_MACHINES_LIST_TIMEOUT_MS,
-    });
+    const result = await client.request<{ workspaces?: unknown[] }>(
+      'workspace.list',
+      { includeArchived: true, ...(params.includeRetired ? { includeRetired: true } : {}) },
+      { timeoutMs: ALL_MACHINES_LIST_TIMEOUT_MS },
+    );
     const rows = Array.isArray(result?.workspaces) ? result.workspaces : [];
     const workspaces = rows.filter(isWorkspaceRow);
     return { id, ok: true, workspaces };
@@ -5656,9 +5662,11 @@ function registerConnectionsHandlers(): void {
     CONNECTIONS.LIST_ALL_WORKSPACES,
     createValidatedHandler(
       ConnectionsListAllWorkspacesSchema,
-      async (): Promise<ListAllWorkspacesResult> => {
+      async (_event, params): Promise<ListAllWorkspacesResult> => {
         const ids = getLiveBackendIds();
-        const machines = await Promise.all(ids.map((id) => listMachineWorkspaces(id)));
+        const machines = await Promise.all(
+          ids.map((id) => listMachineWorkspaces(id, params ?? {})),
+        );
         return { machines };
       },
       CONNECTIONS.LIST_ALL_WORKSPACES,

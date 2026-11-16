@@ -10,6 +10,7 @@ import { put, takeEvery } from 'typed-redux-saga';
 import {
   CONNECTION_CHANNELS,
   type ConnectionRecord,
+  type ListAllWorkspacesParams,
   type ListAllWorkspacesResult,
   type MachineWorkspaceRow,
 } from '$shared/types/connections';
@@ -59,7 +60,10 @@ const connections: ConnectionRecord[] = [
   remote('laptop', 'Travel laptop', '192.0.2.12'),
 ];
 
-function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
+function result(
+  scenario: HomeAllMachinesScenario,
+  includeRetired: boolean,
+): ListAllWorkspacesResult {
   if (scenario === 'all-empty')
     return {
       machines: connections.map((c) => ({ id: c.id, ok: true, workspaces: [] })),
@@ -77,6 +81,10 @@ function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
             statusMessage: 'Reproducing the redirect loop',
           }),
           // The same workspace id as on the other machine: they must stay distinct rows.
+          row('dusty-attic', 'Old spike', {
+            status: 'archived',
+            lastContentActivity: ago(60 * 24 * 20),
+          }),
           row('amber-forest', 'Add dark mode support', {
             displayStatus: 'pr_open',
             lastContentActivity: ago(95),
@@ -98,6 +106,15 @@ function result(scenario: HomeAllMachinesScenario): ListAllWorkspacesResult {
             displayStatus: 'idle',
             lastContentActivity: ago(60 * 24 * 2),
           }),
+          // Archived with its folder purged: only listed when asked for.
+          ...(includeRetired
+            ? [
+                row('mossy-cellar', 'Purged experiment', {
+                  status: 'retired',
+                  lastContentActivity: ago(60 * 24 * 30),
+                }),
+              ]
+            : []),
         ],
       },
       { id: 'build', ok: false, reason: 'timeout' },
@@ -112,7 +129,9 @@ export function setupHomeAllMachinesFixture(scenario: HomeAllMachinesScenario) {
   const previousConnections = selectConnections.select(before);
   const previousApi = window.electronAPI;
   installMockElectronBridge({});
-  registerMockIpcHandler(CONNECTION_CHANNELS.LIST_ALL_WORKSPACES, async () => result(scenario));
+  registerMockIpcHandler(CONNECTION_CHANNELS.LIST_ALL_WORKSPACES, async (arg) =>
+    result(scenario, (arg as ListAllWorkspacesParams | undefined)?.includeRetired === true),
+  );
   store.dispatch(
     connectionsListReceived({ connections, activeId: 'local', windowBackendId: 'local' }),
   );

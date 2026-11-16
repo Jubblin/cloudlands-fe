@@ -1729,9 +1729,30 @@ describe('connections:* IPC handlers', () => {
       const byId = new Map(result.machines.map((machine) => [machine.id, machine]));
       expect(byId.get('local')).toEqual({ id: 'local', ok: true, workspaces: [localRow] });
       expect(byId.get('remote-1')).toEqual({ id: 'remote-1', ok: true, workspaces: [remoteRow] });
-      expect(remote.request).toHaveBeenCalledWith('workspace.list', undefined, {
-        timeoutMs: expect.any(Number),
-      });
+      expect(remote.request).toHaveBeenCalledWith(
+        'workspace.list',
+        { includeArchived: true },
+        { timeoutMs: expect.any(Number) },
+      );
+    });
+
+    it('asks for retired workspaces only when told to', async () => {
+      const { local, remote, handler } = await bootWithLocalAndRemote();
+      local.request.mockResolvedValue({ workspaces: [] });
+      remote.request.mockResolvedValue({ workspaces: [] });
+
+      await handler({}, { includeRetired: true });
+      expect(remote.request).toHaveBeenLastCalledWith(
+        'workspace.list',
+        { includeArchived: true, includeRetired: true },
+        { timeoutMs: expect.any(Number) },
+      );
+      await handler({}, { includeRetired: false });
+      expect(remote.request).toHaveBeenLastCalledWith(
+        'workspace.list',
+        { includeArchived: true },
+        { timeoutMs: expect.any(Number) },
+      );
     });
 
     it('reports a machine that is not connected without sending it a request', async () => {

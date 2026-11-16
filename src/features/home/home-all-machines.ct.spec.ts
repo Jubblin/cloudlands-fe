@@ -69,6 +69,28 @@ test('uses the same filters and search as This machine', async ({ mount, page })
   await expect(rows(page)).toHaveCount(4);
 });
 
+test('the Archived chip also lists archived and retired workspaces from every machine', async ({
+  mount,
+  page,
+}) => {
+  await mount(Preview, scene('mixed'));
+  await expect(rows(page)).toHaveCount(4);
+  await expect(page.getByText('Old spike')).toHaveCount(0);
+
+  await page
+    .getByRole('group', { name: 'Status' })
+    .getByRole('button', { name: /^Archived/ })
+    .click();
+  // The retired workspace is only fetched once the chip is on.
+  await expect(rows(page)).toHaveCount(2);
+  await expect(page.getByText('Old spike')).toBeVisible();
+  await expect(page.getByText('Purged experiment')).toBeVisible();
+  await expect(page.locator('[data-home-machine]')).toHaveText([
+    'This machine (local)',
+    'Mac Studio',
+  ]);
+});
+
 test('shows the same board as This machine, tagged with machines', async ({
   mount,
   page,
