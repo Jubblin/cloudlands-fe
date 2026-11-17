@@ -90,7 +90,7 @@
   const combined = $derived(
     combineMachineWorkspaces($connections$, entries, (connection) =>
       connection.isLocal || connection.id === LOCAL_CONNECTION_ID
-        ? m.layout_daemonStatus_localConnection_label()
+        ? m.home_scope_thisMachine()
         : formatConnectionLabel(connection),
     ),
   );

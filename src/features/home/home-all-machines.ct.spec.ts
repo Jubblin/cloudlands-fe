@@ -26,8 +26,8 @@ test('lists every machine in one grouped list, tagging each row with its machine
   await expect(page.getByText('Draft release notes')).toBeVisible();
   await expect(page.locator('[data-home-machine]')).toHaveText([
     'Mac Studio',
-    'This machine (local)',
-    'This machine (local)',
+    'This machine',
+    'This machine',
     'Mac Studio',
   ]);
   // Grouped like Home's list: needs you, then running, then done & idle.
@@ -85,10 +85,7 @@ test('the Archived chip also lists archived and retired workspaces from every ma
   await expect(rows(page)).toHaveCount(2);
   await expect(page.getByText('Old spike')).toBeVisible();
   await expect(page.getByText('Purged experiment')).toBeVisible();
-  await expect(page.locator('[data-home-machine]')).toHaveText([
-    'This machine (local)',
-    'Mac Studio',
-  ]);
+  await expect(page.locator('[data-home-machine]')).toHaveText(['This machine', 'Mac Studio']);
 });
 
 test('shows the same board as This machine, tagged with machines', async ({
@@ -154,7 +151,10 @@ test('refresh is keyboard reachable with a visible focus ring', async ({ mount, 
 test('stays within the viewport at narrow width', async ({ mount, page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 700 });
   await mount(Preview, scene('mixed'));
-  await expect(page.getByText('Fix login bug')).toBeVisible();
+  const title = page.getByText('Fix login bug');
+  await expect(title).toBeVisible();
+  // A short title keeps its full text next to the machine pill on a phone-width list.
+  expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );

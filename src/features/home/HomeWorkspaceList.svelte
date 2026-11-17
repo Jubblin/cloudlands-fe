@@ -230,7 +230,8 @@
         {/if}
         {#if machineLabel?.(item)}
           <span
-            class="shrink-0 rounded-full border border-border px-2 py-0.5 type-caption"
+            class="min-w-0 max-w-28 truncate rounded-full border border-border px-2 py-0.5 type-caption"
+            title={machineLabel(item)}
             data-home-machine>{machineLabel(item)}</span
           >
         {/if}
