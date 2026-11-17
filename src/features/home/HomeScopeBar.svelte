@@ -16,7 +16,7 @@
     $props();
 </script>
 
-<div class="flex shrink-0 flex-nowrap items-center gap-3 overflow-x-auto px-6 py-4">
+<div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-6 py-4">
   <ToggleGroup.Root
     type="single"
     variant="outline"

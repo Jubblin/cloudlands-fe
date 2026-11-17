@@ -151,6 +151,10 @@ test('refresh is keyboard reachable with a visible focus ring', async ({ mount, 
 test('stays within the viewport at narrow width', async ({ mount, page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 700 });
   await mount(Preview, scene('mixed'));
+  // The controls wrap onto a second line instead of scrolling sideways out of reach.
+  await expect(page.getByRole('button', { name: 'Board view' })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: 'Refresh' })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByPlaceholder('Search workspaces…')).toBeInViewport({ ratio: 1 });
   const title = page.getByText('Fix login bug');
   await expect(title).toBeVisible();
   // A short title keeps its full text next to the machine pill on a phone-width list.
